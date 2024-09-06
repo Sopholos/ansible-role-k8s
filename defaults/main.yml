@@ -1,0 +1,29 @@
+---
+# defaults file for opercoder.k8s
+
+# Переменные k8s
+k8s_controlplane_port: 6443
+k8s_version: "1.30"
+
+# Точка подключения к кластеру (можно указать балансировщик)
+k8s_endpoint:
+  - 1.1.1.1
+  - 1.1.1.1
+
+# Переменные для установки
+containerd_distr_url: https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-amd64.tar.gz
+__containerd_distr_filename: "{{ containerd_distr_url | regex_replace('.*\/','') }}"
+
+runc_distr_url: https://github.com/opencontainers/runc/releases/download/v1.1.13/runc.amd64
+__runc_distr_filename: "{{ runc_distr_url | regex_replace('.*\/','') }}"
+
+cni_plugins_distr_url: https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-amd64-v1.5.1.tgz
+__cni_plugins_distr_filename: "{{ cni_plugins_distr_url | regex_replace('.*\/','') }}"
+
+# Устанавливаемые модули
+install_packages:
+  - wget
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gpg

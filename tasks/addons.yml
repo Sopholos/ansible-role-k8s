@@ -1,0 +1,14 @@
+---
+- name: install helm
+  shell: |
+    wget -O helmbins.tar.gz https://get.helm.sh/helm-v3.14.3-linux-amd64.tar.gz
+    mkdir helmbins
+    tar Cxzvf helmbins helmbins.tar.gz
+    mv helmbins/linux-amd64/helm /usr/local/bin/helm
+    rm -rf helmbins helmbins.tar.gz
+
+- name: install k9s
+  shell: |
+    wget -O k9s.deb https://github.com/derailed/k9s/releases/download/v0.32.3/k9s_linux_amd64.deb && 
+    dpkg -i k9s.deb
+

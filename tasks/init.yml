@@ -1,0 +1,44 @@
+- name: Init k8s cluster
+  command: "kubeadm init --control-plane-endpoint={{ k8s_endpoint }}:{{ k8s_controlplane_port }}"
+  when: not kubelet_conf['stat']['exists']
+
+- name: Create kube directory
+  ansible.builtin.file:
+    path: /root/.kube
+    state: directory
+
+- name: Copy admin.conf
+  command: cp /etc/kubernetes/admin.conf /root/.kube/config
+
+- name: 'Upload control-plane certs and generate join key'
+  ansible.builtin.command: kubeadm init phase upload-certs --upload-certs
+  changed_when: true
+  register: 'k8s_join_key'
+
+- name: 'Get control-plane join token'
+  ansible.builtin.command: kubeadm token create --print-join-command --ttl 10m --certificate-key {{ k8s_join_key['stdout_lines'][-1] }}
+  changed_when: true
+  register: 'k8s_control_plane_join_token'
+
+- name: 'Get worker join token'
+  ansible.builtin.command: kubeadm token create --print-join-command --ttl 10m
+  changed_when: true
+  register: 'k8s_worker_join_token'
+
+- name: 'Set join command for worker nodes'
+  ansible.builtin.set_fact:
+    k8s_join_command: "{{ k8s_worker_join_token['stdout'] }}"
+  delegate_to: "{{ k8s_member }}"
+  delegate_facts: true
+  loop: "{{ groups['worker_nodes'] }}"
+  loop_control:
+    loop_var: 'k8s_member'
+
+- name: 'Set join command for control-plane nodes'
+  ansible.builtin.set_fact:
+    k8s_join_command: "{{ k8s_control_plane_join_token['stdout'] }}"
+  delegate_to: "{{ k8s_controller }}"
+  delegate_facts: true
+  loop: "{{ groups['control_planes'] }}"
+  loop_control:
+    loop_var: 'k8s_controller'

@@ -1,0 +1,16 @@
+---
+- name: 'Join cluster'
+  ansible.builtin.command: "{{ k8s_join_command }}"
+  changed_when: true
+  when: not kubelet_conf['stat']['exists']
+
+- name: Create kube directory
+  ansible.builtin.file:
+    path: /root/.kube
+    state: directory
+  when: inventory_hostname in groups['control_planes']
+
+- name: Copy admin.conf
+  command: cp /etc/kubernetes/admin.conf /root/.kube/config
+  when: inventory_hostname in groups['control_planes']
+

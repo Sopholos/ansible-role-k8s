@@ -1,0 +1,108 @@
+---
+# tasks file for opercoder.k8s
+
+- block:
+    - name: check free port for controlplane
+      shell: ss -tlnp | grep ":{{ k8s_controlplane_port }} " | wc -l
+      register: check_port
+
+    - name: tasks for installing requirements
+      include_tasks:
+        file: requirements.yml
+
+  tags: ['install']
+
+- name: tasks for installing k8s
+  include_tasks:
+    file: install.yml
+    apply:
+      tags: ['install']
+  tags: ['install']
+  when: "'install' in ansible_run_tags"
+
+- name: 'Check for kubelet configuration'
+  ansible.builtin.stat:
+    path: '/var/lib/kubelet/config.yaml'
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: 'kubelet_conf'
+  when: >
+    ('install' in ansible_run_tags or
+    'init' in ansible_run_tags)
+  tags: ['install','init']
+
+- name: tasks for init k8s
+  include_tasks:
+    file: init.yml
+    apply:
+      tags: ['install','init']
+  tags: ['install','init']
+  when: >
+    ('install' in ansible_run_tags or
+    'init' in ansible_run_tags) and
+    inventory_hostname == groups['control_planes'] | first
+
+- name: tasks for join nodes
+  include_tasks:
+    file: join_node.yml
+    apply:
+      tags: ['install','init']
+  tags: ['install','init']
+  when: >
+    ('install' in ansible_run_tags or
+    'init' in ansible_run_tags) and
+    inventory_hostname != groups['control_planes'] | first
+
+- name: clean token
+  include_tasks:
+    file: clean_tokens.yml
+    apply:
+      tags: ['install','init']
+  tags: ['install','init']
+  when: >
+    ('install' in ansible_run_tags or
+    'init' in ansible_run_tags) and
+    inventory_hostname == groups['control_planes'] | first
+
+- name: Костыль для выдачи прав
+  shell: chown root. -R /opt/cni/bin
+  tags: ['install','init']  
+
+- name: install network (cilium)
+  include_tasks:
+    file: network.yml
+    apply:
+      tags: ['install','init']
+  tags: ['install','init']
+  when: >
+    ('install' in ansible_run_tags or
+    'init' in ansible_run_tags) and
+    inventory_hostname in groups['control_planes'] | first
+
+- name: install addons on control planes (helm, k9s)
+  include_tasks:
+    file: addons.yml
+    apply:
+      tags: ['install','init']
+  tags: ['install','init']
+  when: >
+    ('install' in ansible_run_tags or
+    'init' in ansible_run_tags) and
+    inventory_hostname in groups['control_planes']
+
+- name: install addon with helm
+  include_tasks:
+    file: helm_addons.yml
+    apply:
+      tags: ['install','init']
+  tags: ['install','init']
+  when: >
+    ('install' in ansible_run_tags or
+    'init' in ansible_run_tags) and
+    inventory_hostname == groups['control_planes'] | first
+
+- name: tasks for reset k8s on server
+  shell: echo y | kubeadm reset
+  tags: ['reset']
+  when: "'reset' in ansible_run_tags"
