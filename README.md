@@ -2,6 +2,7 @@ Role Name
 =========
 Установка k8s с помощью kubeadm по официальной документации на debian, ubuntu, astra linux, где используется apt.  
 Внимание: с некоторых провайдеров недоступен ресурс https://pkgs.k8s.io/. Тогда надо использовать установку без пакетного менеджера с официального сайта.
+При выполнении задач используется первая нода в списке control_planes. Учитывайте это и всегда выставляйте в inventory первым рабчий control-plane.
 
 TCP балансировщик (nginx)
 
@@ -23,6 +24,17 @@ wget
 
 Example Playbook
 ----------------
+
+1. Установка кластера.
+`pwsh ./Servers/Deployment/k8s/test/install-k8s.yml`
+1. Инициализация кластера.
+`pwsh ./Servers/Deployment/k8s/test/init-k8s.yml`
+1. Добавление или удаление worker nodes в соответствии с файлом inventory.
+`pwsh ./Servers/Deployment/k8s/test/scale-workers-k8s.ps1`
+1. Добавление control plane с etcd.
+`pwsh ./Servers/Deployment/k8s/test/add-cp-k8s.ps1 -cp kub-wn-t-01`
+1. Удаление control plane с etcd.
+`pwsh ./Servers/Deployment/k8s/test/del-cp-k8s.ps1 -cp kub-wn-t-01`
 
 Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
 

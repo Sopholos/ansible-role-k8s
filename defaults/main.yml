@@ -8,7 +8,6 @@ k8s_version: "1.30"
 # Точка подключения к кластеру (можно указать балансировщик)
 k8s_endpoint:
   - 1.1.1.1
-  - 1.1.1.1
 
 # Переменные для установки
 containerd_distr_url: https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-amd64.tar.gz

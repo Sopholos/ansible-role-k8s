@@ -2,7 +2,6 @@
 - name: 'Join cluster'
   ansible.builtin.command: "{{ k8s_join_command }}"
   changed_when: true
-  when: not kubelet_conf['stat']['exists']
 
 - name: Create kube directory
   ansible.builtin.file:

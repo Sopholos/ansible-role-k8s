@@ -5,20 +5,10 @@
     - name: check free port for controlplane
       shell: ss -tlnp | grep ":{{ k8s_controlplane_port }} " | wc -l
       register: check_port
-
     - name: tasks for installing requirements
       include_tasks:
         file: requirements.yml
-
   tags: ['install']
-
-- name: tasks for installing k8s
-  include_tasks:
-    file: install.yml
-    apply:
-      tags: ['install']
-  tags: ['install']
-  when: "'install' in ansible_run_tags"
 
 - name: 'Check for kubelet configuration'
   ansible.builtin.stat:
@@ -27,10 +17,23 @@
     get_attributes: false
     get_mime: false
   register: 'kubelet_conf'
+  tags: ['always']
+
+- name: 'Get first control-plane in inventory'
+  ansible.builtin.set_fact:
+    first_control_plane: "{{ groups['control_planes'] | first }}"
+  tags: ['always']
+
+- name: tasks for installing k8s
+  include_tasks:
+    file: install.yml
+    apply:
+      tags: ['install']
+  tags: ['install']
   when: >
-    ('install' in ansible_run_tags or
-    'init' in ansible_run_tags)
-  tags: ['install','init']
+    ('install' in ansible_run_tags or 
+    'init' in ansible_run_tags) and
+    not kubelet_conf['stat']['exists']
 
 - name: tasks for init k8s
   include_tasks:
@@ -39,68 +42,35 @@
       tags: ['install','init']
   tags: ['install','init']
   when: >
-    ('install' in ansible_run_tags or
-    'init' in ansible_run_tags) and
-    inventory_hostname == groups['control_planes'] | first
+    'install' in ansible_run_tags or 
+    'init' in ansible_run_tags
 
-- name: tasks for join nodes
+- name: add/delete worker nodes by changes in inventory file
   include_tasks:
-    file: join_node.yml
+    file: scale_nodes.yml
     apply:
-      tags: ['install','init']
-  tags: ['install','init']
-  when: >
-    ('install' in ansible_run_tags or
-    'init' in ansible_run_tags) and
-    inventory_hostname != groups['control_planes'] | first
+      tags: ['scale-worker-nodes']
+  tags: ['scale-worker-nodes']
+  when: "'scale-worker-nodes' in ansible_run_tags"
 
-- name: clean token
-  include_tasks:
-    file: clean_tokens.yml
-    apply:
-      tags: ['install','init']
-  tags: ['install','init']
-  when: >
-    ('install' in ansible_run_tags or
-    'init' in ansible_run_tags) and
-    inventory_hostname == groups['control_planes'] | first
+- block:
+    - name: add control plane node with var cp
+      include_tasks:
+        file: scale_nodes.yml
+        apply:
+          tags: ['add-cp']
+      tags: ['add-cp']
+      when: "'add-cp' in ansible_run_tags"
 
-- name: Костыль для выдачи прав
-  shell: chown root. -R /opt/cni/bin
-  tags: ['install','init']  
+    - name: delete control plane node with var cp
+      include_tasks:
+        file: scale_nodes.yml
+        apply:
+          tags: ['del-cp']
+      tags: ['del-cp']
+      when: "'del-cp' in ansible_run_tags"
 
-- name: install network (cilium)
-  include_tasks:
-    file: network.yml
-    apply:
-      tags: ['install','init']
-  tags: ['install','init']
-  when: >
-    ('install' in ansible_run_tags or
-    'init' in ansible_run_tags) and
-    inventory_hostname in groups['control_planes'] | first
-
-- name: install addons on control planes (helm, k9s)
-  include_tasks:
-    file: addons.yml
-    apply:
-      tags: ['install','init']
-  tags: ['install','init']
-  when: >
-    ('install' in ansible_run_tags or
-    'init' in ansible_run_tags) and
-    inventory_hostname in groups['control_planes']
-
-- name: install addon with helm
-  include_tasks:
-    file: helm_addons.yml
-    apply:
-      tags: ['install','init']
-  tags: ['install','init']
-  when: >
-    ('install' in ansible_run_tags or
-    'init' in ansible_run_tags) and
-    inventory_hostname == groups['control_planes'] | first
+  when: cp is defined
 
 - name: tasks for reset k8s on server
   shell: echo y | kubeadm reset

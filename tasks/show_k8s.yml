@@ -1,0 +1,18 @@
+---
+- name: 'Get nodes'
+  ansible.builtin.command: "kubectl get no"
+  register: cluster_nodes 
+
+- name: 'Get etcd peers'
+  command: "kubectl exec etcd-kub-mn-t-01 -n kube-system -- 
+              etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt \
+              --cert /etc/kubernetes/pki/etcd/peer.crt \
+              --key /etc/kubernetes/pki/etcd/peer.key \
+              member list"
+  register: etcd_peers
+
+- name: Show k8s status
+  debug:
+    msg:
+      - "{{ cluster_nodes.stdout_lines }}"
+      - "{{ etcd_peers.stdout_lines }}"

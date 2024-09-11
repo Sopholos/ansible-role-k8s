@@ -1,2 +1,0 @@
-- name: install ingress
-  shell: helm install ingress-nginx oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.3.2
