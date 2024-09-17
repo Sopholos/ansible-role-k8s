@@ -24,6 +24,9 @@ Requirements
 - cni_plugins_distr_url
 - install_packages
 - ingress_definitions
+- yandex_s3_bucket
+- yandex_s3_key
+- yandex_s3_secret
 
 Dependencies
 ------------
@@ -48,7 +51,8 @@ Example Playbook
 1. Добавление/удаление ingress в соответствии с заданной переменной ingress_definitions.  
 `pwsh ./Servers/Deployment/k8s/test/ingress.ps1`
 Ингрессы, которые отсутствуют в переменной, а в кластере существуют - __удаляются!!!__
-
+1. Добавление CSI для подключения к Yandex S3.
+`pwsh ./Servers/Deployment/k8s/test/yandex-s3.ps1`
 1. Вывод всех нод, заданных в inventory из кластера.
 `pwsh ./Servers/Deployment/k8s/test/reset.ps1`
 

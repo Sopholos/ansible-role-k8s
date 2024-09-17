@@ -90,6 +90,16 @@
     'ingress' in ansible_run_tags and
     inventory_hostname == first_control_plane
 
+- name: Add Yandex S3
+  include_tasks:
+    file: yandex-s3.yml
+    apply:
+      tags: ['s3']
+  tags: ['s3']
+  when: > 
+    's3' in ansible_run_tags and
+    inventory_hostname == first_control_plane
+
 - name: tasks for reset k8s on server
   shell: |
     echo y | kubeadm reset
