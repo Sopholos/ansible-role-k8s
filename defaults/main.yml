@@ -10,6 +10,9 @@ k8s_endpoint:
   - 1.1.1.1
 
 # Переменные для установки
+zabbix_server_host: zabbix.agrohistory.local
+zabbix_monitoring_version: 6.4
+
 containerd_distr_url: https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-amd64.tar.gz
 __containerd_distr_filename: "{{ containerd_distr_url | regex_replace('.*\/','') }}"
 
@@ -26,3 +29,15 @@ install_packages:
   - ca-certificates
   - curl
   - gpg
+
+ingress_definitions: []
+#ingress_definitions:
+  # - host: kub-lb-t-01.agrohistory.local
+  #   namespace: kubernetes-dashboard
+  #   services:
+  #     - path: dashboard
+  #       name: kubernetes-dashboard-web
+  #       port: 8000
+  #   annotations: 
+  #     kubernetes.io/ingress.class: "nginx"
+  #   tls: []

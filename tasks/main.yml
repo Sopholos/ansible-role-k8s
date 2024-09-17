@@ -72,7 +72,27 @@
 
   when: cp is defined
 
+- name: Install additional soft (zabbix)
+  include_tasks:
+    file: install_additional_soft.yml
+    apply:
+      tags: ['add-soft']
+  tags: ['add-soft']
+  when: "'add-soft' in ansible_run_tags"
+
+- name: Add ingress
+  include_tasks:
+    file: ingress.yml
+    apply:
+      tags: ['ingress']
+  tags: ['ingress']
+  when: > 
+    'ingress' in ansible_run_tags and
+    inventory_hostname == first_control_plane
+
 - name: tasks for reset k8s on server
-  shell: echo y | kubeadm reset
+  shell: |
+    echo y | kubeadm reset
+    rm -rf /var/lib/etcd/
   tags: ['reset']
   when: "'reset' in ansible_run_tags"

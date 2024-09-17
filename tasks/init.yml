@@ -27,14 +27,12 @@
 - name: clean tokens
   include_tasks:
     file: clean_tokens.yml
-    apply:
-      tags: ['install','init']
-  tags: ['install','init']
   when: inventory_hostname == first_control_plane
 
-- block:
-    - name: Костыль для выдачи прав
-      shell: chown root. -R /opt/cni/bin 
+- name: Костыль для выдачи прав для папки /opt/cni/bin (cilium)
+  shell: chown root. -R /opt/cni/bin
+
+- block: 
     - name: "install helm"
       shell: |
         wget -O helmbins.tar.gz https://get.helm.sh/helm-v3.14.3-linux-amd64.tar.gz
@@ -66,9 +64,14 @@
         rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
         cilium install --version 1.16.1
       when: pods_system.stdout.find('cilium') == -1
+    - name: Allow to start pods on control-planes
+      shell: kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+      ignore_errors: yes
     - name: install ingress
       shell: |
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
         kubectl create namespace ingress-nginx --dry-run=client -o yaml | kubectl apply -f -
-        helm install ingress-nginx oci://ghcr.io/nginxinc/charts/nginx-ingress --version 1.3.2 --namespace ingress-nginx
+        helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx
       when: pods_system.stdout.find('ingress-nginx') == -1
+
   when: inventory_hostname == first_control_plane
