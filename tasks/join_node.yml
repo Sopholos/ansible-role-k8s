@@ -1,15 +1,29 @@
 ---
-- name: 'Join cluster'
+- name: 'Join control plane to cluster'
   ansible.builtin.command: "{{ k8s_join_command }}"
   changed_when: true
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  with_items: "{{ groups['control_planes'] }}"
+  when: >
+    inventory_hostname == first_control_plane and
+    item != first_control_plane and
+    not kubelet_conf['stat']['exists']
 
-- name: Create kube directory
-  ansible.builtin.file:
-    path: /root/.kube
-    state: directory
-  when: inventory_hostname in groups['control_planes']
+- name: 'Join control plane to cluster'
+  ansible.builtin.command: "{{ k8s_join_command }}"
+  when: >
+    inventory_hostname in groups['worker_nodes'] and
+    not kubelet_conf['stat']['exists']
+  
+- block:
+    - name: Create kube directory
+      ansible.builtin.file:
+        path: /root/.kube
+        state: directory
 
-- name: Copy admin.conf
-  command: cp /etc/kubernetes/admin.conf /root/.kube/config
-  when: inventory_hostname in groups['control_planes']
+    - name: Copy admin.conf
+      command: cp /etc/kubernetes/admin.conf /root/.kube/config
+  when: inventory_hostname in groups['control_planes'] and
+        inventory_hostname != first_control_plane
 

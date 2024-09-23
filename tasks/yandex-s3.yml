@@ -1,6 +1,6 @@
 - name: Install CSI
   shell: |
-    helm install \
+    helm upgrade --install \
     --namespace kube-system \
     --set storageClass.singleBucket={{ yandex_s3_bucket }} \
     --set secret.accessKey={{ yandex_s3_key }} \

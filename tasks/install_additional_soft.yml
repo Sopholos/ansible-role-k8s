@@ -31,12 +31,9 @@
           shell: |
             cd ~
             helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
-            rm -rf kubernetes-dashboard*
-            helm pull kubernetes-dashboard/kubernetes-dashboard
-            tar -xzf kubernetes-dashboard*
-            cd kubernetes-dashboard
-            printf '%s\n' '/kong//type:.*/s//type: NodePort/' x | ex values.yaml
-            helm upgrade --install kubernetes-dashboard . --create-namespace --namespace kubernetes-dashboard
+            helm upgrade --install kubernetes-dashboard \
+            --set kong.proxy.type=NodePort kubernetes-dashboard/kubernetes-dashboard \
+            --create-namespace --namespace kubernetes-dashboard
         - name: Copy files to remote
           copy:
             src: "{{ item }}"

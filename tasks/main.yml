@@ -100,9 +100,48 @@
     's3' in ansible_run_tags and
     inventory_hostname == first_control_plane
 
+- name: Upgrade cluster
+  include_tasks:
+    file: upgrade-k8s.yml
+    apply:
+      tags: ['upgrade']
+  tags: ['upgrade']
+  when: > 
+    'upgrade' in ansible_run_tags
+
 - name: tasks for reset k8s on server
   shell: |
     echo y | kubeadm reset
     rm -rf /var/lib/etcd/
+    rm -rf /etc/kubernetes/
   tags: ['reset']
   when: "'reset' in ansible_run_tags"
+
+- name: tasks for delete k8s on server
+  include_tasks:
+    file: delete-k8s.yml
+    apply:
+      tags: ['delete']
+  tags: ['delete']
+  when: > 
+    'delete' in ansible_run_tags
+
+- name: tasks for backup k8s
+  include_tasks:
+    file: backup-k8s.yml
+    apply:
+      tags: ['backup']
+  tags: ['backup']
+  when: > 
+    'backup' in ansible_run_tags and
+    inventory_hostname == first_control_plane
+
+- name: restore from backup k8s
+  include_tasks:
+    file: restore-k8s.yml
+    apply:
+      tags: ['restore']
+  tags: ['restore']
+  when: > 
+    'restore' in ansible_run_tags and
+    inventory_hostname in groups['control_planes']

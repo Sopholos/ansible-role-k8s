@@ -27,6 +27,7 @@ Requirements
 - yandex_s3_bucket
 - yandex_s3_key
 - yandex_s3_secret
+- backup_dir
 
 Dependencies
 ------------
@@ -36,7 +37,8 @@ wget
 Example Playbook
 ----------------
 
-1. Установка кластера.
+1. Установка кластера.  
+В переменной k8s_version указывается устанавливаемая версия.
 `pwsh ./Servers/Deployment/k8s/test/install-k8s.yml`
 1. Инициализация кластера.
 `pwsh ./Servers/Deployment/k8s/test/init-k8s.yml`
@@ -53,8 +55,15 @@ Example Playbook
 Ингрессы, которые отсутствуют в переменной, а в кластере существуют - __удаляются!!!__
 1. Добавление CSI для подключения к Yandex S3.
 `pwsh ./Servers/Deployment/k8s/test/yandex-s3.ps1`
+1. Обновление кластера до заданной версии.  
+В переменной k8s_version указывается устанавливаемая версия.
+`pwsh ./Servers/Deployment/k8s/test/upgrade-k8s.ps1`
 1. Вывод всех нод, заданных в inventory из кластера.
 `pwsh ./Servers/Deployment/k8s/test/reset.ps1`
+1. Удаление кластера со всех нод.
+`pwsh ./Servers/Deployment/k8s/test/delete-k8s.ps1`
+1. Резервное копирование кластера.
+`pwsh ./Servers/Deployment/k8s/test/backup-k8s.ps1`
 
 Author Information
 ------------------
@@ -63,9 +72,11 @@ Author Information
 
 PS
 ------------------
+
 На control-plane ноды устанавливается k9s для возможности удобного просмотра информации о кластере из командной строки.  
 Команды:
+
 - k9s - start gui  
-- use ":" to navigate trough cluster resources https://k9scli.io/topics/  
+- use ":" to navigate trough cluster resources <https://k9scli.io/topics/>
 - PRESS ":" then TYPE "deploy" and PRESS "Enter" will open deployments list  
 - PRESS ":" then TYPE "q" and PRESS "Enter" will close k9s and return you to shell  

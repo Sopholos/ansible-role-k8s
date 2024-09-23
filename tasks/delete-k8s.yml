@@ -1,0 +1,34 @@
+---
+- name: K8s reset
+  shell: |
+    echo y | kubeadm reset 
+    rm -rf /etc/kubernetes
+    rm -rf /var/lib/etcd
+    rm -rf /var/lib/kubelet
+    rm -rf /var/run/kubernetes
+    rm -rf /etc/cni/net.d
+    rm -rf ~/.kube/config
+  ignore_errors: true
+
+- name: Unhold kubeadm, kubelet, kubectl
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: install
+  ignore_errors: true
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+
+- name: Delete kubeadm, kubelet, kubectl
+  apt:
+    name: "{{ item }}"
+    state: absent
+    update_cache: yes
+    purge: true
+    autoremove: true
+  ignore_errors: true
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl

@@ -1,0 +1,20 @@
+- name: Copy to remote
+  copy: 
+    src: "{{ backup_ansible_dir }}/{{ inventory_hostname }}-etcd-{{ time_for_restore }}.db"
+    dest: "{{ backup_dir }}"
+
+- name: Restore etcd
+  shell: |
+    rm -rf {{ etcd_dir_to_restore }}
+    sudo ETCDCTL_API=3 etcdctl \
+    --data-dir {{ etcd_dir_to_restore }} \
+    snapshot restore {{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ time_for_restore }}.db
+
+- name: Change etcd manifest
+  lineinfile:
+    dest: "/etc/kubernetes/manifests/etcd.yaml"
+    insertafter: ".*path: \/var\/lib\/etcd*"
+    line: "      path: {{ etcd_dir_to_restore }}"
+  
+- name: Apply etcd manifest 
+  shell: kubectl apply -f /etc/kubernetes/manifests/etcd.yaml

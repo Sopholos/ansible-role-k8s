@@ -8,21 +8,19 @@
         state: directory
     - name: Copy admin.conf
       command: cp /etc/kubernetes/admin.conf /root/.kube/config 
+     
   when: >
     inventory_hostname == first_control_plane and
     not kubelet_conf['stat']['exists']
 
 - name: Get tokens
   include_tasks:
-    file: get_tokens.yml  
+    file: get_tokens.yml
   when: inventory_hostname == first_control_plane
 
 - name: tasks for join nodes
   include_tasks:
     file: join_node.yml
-  when: >
-    inventory_hostname != first_control_plane and
-    not kubelet_conf['stat']['exists']
 
 - name: clean tokens
   include_tasks:
@@ -49,10 +47,15 @@
     not kubelet_conf['stat']['exists']
 
 - block:
+    - name: Allow to start pods on control-planes
+      shell: kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+      ignore_errors: true
+
     - name: get pods in kube-system
       shell: kubectl get pods --no-headers -o custom-columns=":metadata.name" --all-namespaces
       register: pods_system
       changed_when: false
+
     - name: install cilium CNI
       shell: |
         CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
@@ -64,9 +67,7 @@
         rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
         cilium install --version 1.16.1
       when: pods_system.stdout.find('cilium') == -1
-    - name: Allow to start pods on control-planes
-      shell: kubectl taint nodes --all node-role.kubernetes.io/control-plane-
-      ignore_errors: yes
+      
     - name: install ingress
       shell: |
         helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
