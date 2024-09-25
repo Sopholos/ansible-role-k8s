@@ -1,0 +1,92 @@
+- name: Set manifests_backup
+  ansible.builtin.set_fact:
+    manifests_backup: '~/manifests_backup'
+
+- name: Set k8s_manifests
+  ansible.builtin.set_fact:
+    k8s_manifests: '/etc/kubernetes/manifests'
+
+- name: Copy to remote
+  copy: 
+    src: "{{ backup_ansible_dir }}/{{ backup_file }}"
+    dest: "{{ backup_dir }}"
+
+- name: Check snapshot
+  shell: |
+    sudo ETCDCTL_API=3 etcdctl \
+    --cacert /etc/kubernetes/pki/etcd/ca.crt \
+    --cert /etc/kubernetes/pki/etcd/peer.crt \
+    --key /etc/kubernetes/pki/etcd/peer.key \
+    --write-out=table \
+    snapshot status {{ backup_dir }}/{{ backup_file }}
+  register: snapshot_status
+
+- debug: msg="{{ snapshot_status.stdout_lines }}"
+
+- name: Restore snapshot to new path
+  shell: |
+    rm -rf {{ etcd_dir_to_restore }}
+    sudo ETCDCTL_API=3 etcdctl \
+    --data-dir {{ etcd_dir_to_restore }} \
+    snapshot restore {{ backup_dir }}/{{ backup_file }}
+
+- name: Creates directory for manifests_backup
+  ansible.builtin.file:
+    path: "{{ manifests_backup }}"
+    state: directory
+
+- name: Stop kube-apiserver, etcd, scheduler, controller-manager
+  shell: "mv {{ k8s_manifests }}/* {{ manifests_backup }}"
+
+- name: Wait while stopped
+  shell: |
+    count=$(crictl -r unix:///run/containerd/containerd.sock ps | grep -E 'kube-apiserver | etcd | kube-scheduler | kube-controller-manager' | wc -l)
+    while [ $count -ne 0 ]; do
+      sleep 5
+      count=$(crictl -r unix:///run/containerd/containerd.sock ps | grep -E 'kube-apiserver | etcd | kube-scheduler | kube-controller-manager' | wc -l)
+    done
+    
+- name: Stop kubelet
+  systemd_service:
+    name: kubelet
+    state: stopped
+
+- name: Check stopped kube-apiserver, etcd, scheduler, controller-manager
+  shell: sudo crictl -r unix:///run/containerd/containerd.sock ps
+  register: container_list
+
+- debug: msg="{{ container_list.stdout_lines }}"
+
+- name: Change etcd manifest
+  lineinfile:
+    dest: "{{ manifests_backup }}/etcd.yaml"
+    regexp: '^(.*)path:(.*)/var/lib/etcd(.*)'
+    line: "      path: {{ etcd_dir_to_restore }}"
+    backrefs: yes
+
+- name: Start kube-apiserver, etcd, scheduler, controller-manager
+  shell: mv {{ manifests_backup }}/* {{ k8s_manifests }}
+
+- name: Start kubelet
+  systemd_service:
+    name: kubelet
+    state: started
+
+- name: Wait while started
+  shell: |
+    count=$(crictl -r unix:///run/containerd/containerd.sock ps | grep -E 'kube-apiserver | etcd | kube-scheduler | kube-controller-manager' | wc -l)
+    while [ $count -ne 4 ]; do
+      sleep 5
+      count=$(crictl -r unix:///run/containerd/containerd.sock ps | grep -E 'kube-apiserver | etcd | kube-scheduler | kube-controller-manager' | wc -l)
+    done
+
+- name: Check etcd cluster
+  shell: |
+    sudo ETCDCTL_API=3 etcdctl endpoint status \
+    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+    --cert=/etc/kubernetes/pki/etcd/server.crt \
+    --key=/etc/kubernetes/pki/etcd/server.key \
+    --cluster -w table
+  register: etcd_status
+
+- debug: msg="{{ etcd_status.stdout_lines }}"

@@ -1,0 +1,117 @@
+- name: Create dir for public signing key
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+
+- name: Download public signing key
+  shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | sudo gpg --dearmor > /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+    
+- name: Unhold kubeadm, kubelet, kubectl
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: install
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+
+- name: Install kubeadm
+  apt:
+    state: latest
+    name: kubeadm
+    update_cache: yes
+    allow_downgrade: yes
+
+- block:
+      
+    - name: Check kubeadm version
+      command: kubeadm version -o short
+      register: kubeadm_version
+
+    - debug: msg="{{ kubeadm_version.stdout }}"
+
+    - name: Verify upgrade plan
+      command: kubeadm upgrade plan --ignore-preflight-errors=all
+      register: plan
+
+    - debug: msg="{{ plan.stdout_lines }}"
+
+    - name: Upgrade first control-plane
+      shell: |
+        kubeadm upgrade apply {{ kubeadm_version.stdout }} --ignore-preflight-errors=all -y
+
+  when: inventory_hostname == first_control_plane
+  any_errors_fatal: true
+
+#### Upgrade Control planes
+- name: Upgrade other control-planes
+  shell: |
+    kubeadm upgrade node
+  delegate_to: "{{ item }}"
+  with_items: "{{ groups['control_planes'] }}"
+  when: >
+    inventory_hostname == first_control_plane and 
+    item != first_control_plane
+
+- name: Upgrade kubelet, kubectl
+  shell: |
+    kubectl drain {{ item }} --ignore-daemonsets
+    apt-get install -y kubelet kubectl
+    sudo systemctl daemon-reload
+    sudo systemctl restart kubelet
+    kubectl uncordon {{ item }}
+    cp /etc/kubernetes/admin.conf /root/.kube/config 
+  delegate_to: "{{ item }}"
+  with_items: "{{ groups['control_planes'] }}"
+  when: inventory_hostname == first_control_plane
+####
+
+#### Update worker nodes
+- name: Fetch kube_config
+  fetch:
+    src: ~/.kube/config
+    dest: /tmp/.kube_config
+    flat: true
+  when: inventory_hostname == first_control_plane
+
+- name: Copy kube_config
+  copy:
+    src: /tmp/.kube_config
+    dest: ~/.kube/config
+  when: inventory_hostname in groups['worker_nodes']
+
+- name: Delete local kube_config
+  local_action: ansible.builtin.command rm -f /tmp/.kube_config
+  become: no
+
+
+- name: Update Worker Nodes
+  shell: |
+    kubeadm upgrade node
+    kubectl drain {{ item }} --ignore-daemonsets
+    apt-get install -y kubelet kubectl
+    sudo systemctl daemon-reload
+    sudo systemctl restart kubelet
+    kubectl uncordon {{ item }}
+  delegate_to: "{{ item }}"
+  with_items: "{{ groups['worker_nodes'] }}"
+  when: >
+    inventory_hostname == first_control_plane
+
+- name: Delete kube_config
+  file:
+    path: ~/.kube/config
+    state: absent
+  when: inventory_hostname in groups['worker_nodes']
+
+- name: Hold kubeadm, kubelet, kubectl
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+####
