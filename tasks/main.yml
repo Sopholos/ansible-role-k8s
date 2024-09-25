@@ -47,30 +47,31 @@
 
 - name: add/delete worker nodes by changes in inventory file
   include_tasks:
-    file: scale_nodes.yml
+    file: scale_worker_nodes.yml
     apply:
       tags: ['scale-worker-nodes']
   tags: ['scale-worker-nodes']
-  when: "'scale-worker-nodes' in ansible_run_tags"
+  when: >
+    'scale-worker-nodes' in ansible_run_tags
 
 - block:
     - name: add control plane node with var cp
       include_tasks:
-        file: scale_nodes.yml
+        file: scale_control_planes.yml
         apply:
           tags: ['add-cp']
       tags: ['add-cp']
       when: "'add-cp' in ansible_run_tags"
-
     - name: delete control plane node with var cp
       include_tasks:
-        file: scale_nodes.yml
+        file: scale_control_planes.yml
         apply:
           tags: ['del-cp']
       tags: ['del-cp']
       when: "'del-cp' in ansible_run_tags"
-
-  when: cp is defined
+  when: > 
+    cp is defined and
+    inventory_hostname in groups['control_planes']
 
 - name: Install additional soft (zabbix)
   include_tasks:

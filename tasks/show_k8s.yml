@@ -14,5 +14,7 @@
 - name: Show k8s status
   debug:
     msg:
+      - "Cluster"
       - "{{ cluster_nodes.stdout_lines }}"
+      - Etcd
       - "{{ etcd_peers.stdout_lines }}"

@@ -1,7 +1,6 @@
 - name: Get etcd members
   shell: |
-    kubectl exec etcd-{{ inventory_hostname }} -n kube-system -- \
-    etcdctl \
+    ETCDCTL_API=3 etcdctl \
     --cacert /etc/kubernetes/pki/etcd/ca.crt \
     --cert /etc/kubernetes/pki/etcd/peer.crt \
     --key /etc/kubernetes/pki/etcd/peer.key \
@@ -21,7 +20,7 @@
 - name: Backup etcd
   shell: |
     mkdir -p {{ backup_dir }}
-    sudo  etcdctl \
+    sudo ETCDCTL_API=3 etcdctl \
     --cacert=/etc/kubernetes/pki/etcd/ca.crt \
     --cert=/etc/kubernetes/pki/etcd/peer.crt \
     --key=/etc/kubernetes/pki/etcd/peer.key \
@@ -48,6 +47,8 @@
     src: "{{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ timestamp }}.db"
     dest: "{{ backup_ansible_dir }}/"
     flat: true
+
+- debug: msg="Backup file {{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ timestamp }}.db"
 
 - name: Backup PVC
   debug: msg="Можно использовать Velero, например."

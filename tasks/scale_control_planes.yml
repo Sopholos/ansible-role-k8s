@@ -1,0 +1,88 @@
+- block:
+    - name: Get current control planes from the cluster
+      command: kubectl get nodes --selector node-role.kubernetes.io/control-plane= -o jsonpath='{.items[*].metadata.name}'
+      register: current_cp_nodes
+    - name: Set current_cp_nodes
+      set_fact:
+        current_cp_nodes_str: "{{ current_cp_nodes.stdout.split() }}"
+    - name: Set cp_nodes_to_add
+      set_fact:
+        cp_nodes_to_add: "{{ groups['control_planes'] | difference(current_cp_nodes_str) }}"
+    - name: Set cp_nodes_to_remove
+      set_fact:
+        cp_nodes_to_remove: "{{ current_cp_nodes_str | difference(groups['control_planes']) }}"
+    - debug: 
+        msg: 
+          - "cur control planes {{ current_cp_nodes_str }}"
+          - "inventory control planes {{groups['control_planes']}}"
+          - "need to add {{ cp_nodes_to_add }}"
+          - "need to del {{ cp_nodes_to_remove }}" 
+  delegate_to: "{{ first_control_plane }}"
+  run_once: true
+
+- block:
+    - debug: msg="Error! {{ cp }} was not add in inventory!!! Add {{ cp }} to control_planes."
+    - meta: end_play
+  when: >
+    cp not in cp_nodes_to_add and
+    ansible_run_tags == 'add-cp'
+
+- block:
+    - debug: msg="Error! {{ cp }} was not delete from inventory!!! Delete {{ cp }} from control_planes."
+    - meta: end_play
+  when: >
+    cp not in cp_nodes_to_remove and
+    ansible_run_tags == 'del-cp'
+
+# Delete control plane
+- name: Delete control plane
+  shell: |
+    kubectl cordon {{ cp }}
+    kubectl drain {{ cp }} --ignore-daemonsets
+    kubectl delete node {{ cp }}
+  delegate_to: "{{ first_control_plane }}"
+  run_once: true
+  when: "'del-cp' in ansible_run_tags"
+# Delete from etcd
+- block:
+    - name: Get id of removed control plane from etcd
+      shell: "kubectl exec etcd-{{ first_control_plane }} -n kube-system -- 
+               etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt \
+               --cert /etc/kubernetes/pki/etcd/peer.crt \
+               --key /etc/kubernetes/pki/etcd/peer.key \
+               member list | grep {{ cp }} | cut -d, -f1"
+      register: id_cp
+    - name: Set fact with id_cp
+      ansible.builtin.set_fact:
+        id_cp_str: "{{ id_cp.stdout }}"
+    - name: Delete peer from etcd
+      shell:  "kubectl exec etcd-{{ first_control_plane }} -n kube-system --
+                etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt \
+                --cert /etc/kubernetes/pki/etcd/peer.crt \
+                --key /etc/kubernetes/pki/etcd/peer.key \
+                member remove {{ id_cp_str }}"
+      when: id_cp_str is defined
+  when: >
+    'del-cp' in ansible_run_tags and
+    inventory_hostname == first_control_plane
+
+
+# Add control plane
+- block:  
+    - name: get tokens
+      include_tasks:
+        file: get_tokens.yml
+      when: inventory_hostname == first_control_plane
+    - name: Join control plane to cluster
+      ansible.builtin.command: "{{ k8s_join_command }}"
+      when: inventory_hostname == cp
+    - name: clean tokens
+      include_tasks:
+        file: clean_tokens.yml
+      when: inventory_hostname == first_control_plane
+  when: "'add-cp' in ansible_run_tags"
+
+# Show status
+- name: Add show status
+  include_tasks: show_k8s.yml
+  when: inventory_hostname == first_control_plane

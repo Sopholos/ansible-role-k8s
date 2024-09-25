@@ -12,22 +12,34 @@ Requirements
 Установка для Ubuntu/Debian.  
 Список используемых переменных:  
 
-- k8s_version
-- k8s_controlplane_port
-- k8s_endpoint
-- k8s_control_planes
-- k8s_workers
-- zabbix_server_host
-- zabbix_monitoring_version
+- k8s_endpoint // Адрес балансировщика или control-plane в случае его отсутствия
+- k8s_controlplane_port // Порт балансировщика или control-plane для подключения к API
+- k8s_version // Версия кластера для установки или обновления
+
+---
+
 - containerd_distr_url
 - runc_distr_url
 - cni_plugins_distr_url
 - install_packages
 - ingress_definitions
-- yandex_s3_bucket
-- yandex_s3_key
-- yandex_s3_secret
-- backup_dir
+
+---
+
+- zabbix_server_host // Адрес zabbix сервера в случае установки агента в кластер
+- zabbix_monitoring_version // Версия агента
+
+---
+
+- yandex_s3_bucket // Идентификатор бакета в S3 от Яндекс
+- yandex_s3_key // Ключ доступа
+- yandex_s3_secret // Секрет доступа
+
+---
+
+- backup_dir // Директория для сохранения бэкапа на нодах кластера
+- backup_ansible_dir // Директория для сохранения бэкапа на сервере Ansible
+- backup_file // Файл с бэкапом для восстановления кластера
 
 Dependencies
 ------------
@@ -64,6 +76,8 @@ Example Playbook
 `pwsh ./Servers/Deployment/k8s/test/delete-k8s.ps1`
 1. Резервное копирование кластера.
 `pwsh ./Servers/Deployment/k8s/test/backup-k8s.ps1`
+1. Восстановление кластера из резервной копии.
+`pwsh ./Servers/Deployment/k8s/test/restore-k8s.ps1`
 
 Author Information
 ------------------

@@ -7,14 +7,12 @@
   with_items: "{{ groups['control_planes'] }}"
   when: >
     inventory_hostname == first_control_plane and
-    item != first_control_plane and
-    not kubelet_conf['stat']['exists']
+    item != first_control_plane 
 
-- name: 'Join control plane to cluster'
+- name: 'Join worker node to cluster'
   ansible.builtin.command: "{{ k8s_join_command }}"
   when: >
-    inventory_hostname in groups['worker_nodes'] and
-    not kubelet_conf['stat']['exists']
+    inventory_hostname in groups['worker_nodes']
   
 - block:
     - name: Create kube directory
