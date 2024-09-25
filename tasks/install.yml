@@ -1,0 +1,70 @@
+- block:
+    - name: "end play if port is busy"
+      debug:
+        msg: "Port {{ k8s_controlplane_port }} is busy! Playbook stopped."
+    - meta: end_play
+  when: check_port.stdout != "0"
+
+- name: Ensure br_netfilter is enabled.
+  modprobe:
+    name: br_netfilter
+    state: present
+
+- name: Enable ip forward
+  lineinfile:
+    dest: /etc/sysctl.conf
+    regexp: ^net.ipv4.ip_forward
+    line: net.ipv4.ip_forward = 1
+
+
+- name : Apply sysctl params without reboot
+  command: sysctl -p
+
+- name: Swap off
+  command: sudo swapoff -a
+
+- name: Remove Swap from fstab
+  mount:
+    name: swap
+    fstype: swap
+    state: absent
+
+- name: Tasks for installation Containerd
+  include_tasks: containerd.yml
+
+- name: Create dir for public signing key
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+
+- name: Download public signing key
+  shell: |
+    rm -f /etc/apt/sources.list.d/kubernetes.list
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key | sudo gpg --dearmor > /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+    apt update -y 
+
+- name: Install kubeadm, kubelet, kubectl
+  apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+
+- name: Hold kubeadm, kubelet, kubectl
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl
+
+- name: Enable kubelet
+  ansible.builtin.systemd_service:
+    name: kubelet
+    state: started
+    enabled: true

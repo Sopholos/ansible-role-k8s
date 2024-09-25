@@ -1,0 +1,34 @@
+# roles/kubernetes_ingress/templates/ingress.yaml.j2
+{% for ingress in ingress_definitions %}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ ingress.host | replace('.', '-') }}-ingress
+  namespace: {{ ingress.namespace }}
+  annotations:
+{% for key, value in ingress.annotations.items() %}
+    {{ key }}: {{ value }}
+{% endfor %}
+spec:
+  rules:
+  - host: {{ ingress.host }}
+    http:
+      paths:
+      {% for service in ingress.services %}
+- path: /{{ service.path }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ service.name }}
+            port:
+              number: {{ service.port }}
+      {% endfor %}
+  {% if ingress.tls %}
+  tls:
+    {% for tls in ingress.tls %}
+    - secretName: {{ tls.secretName }}
+      hosts:
+        - {{ ingress.host }}
+    {% endfor %}
+  {% endif %}
+{% endfor %}

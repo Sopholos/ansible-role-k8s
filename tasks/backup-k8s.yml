@@ -1,0 +1,55 @@
+- name: Get etcd members
+  shell: |
+    ETCDCTL_API=3 etcdctl \
+    --cacert /etc/kubernetes/pki/etcd/ca.crt \
+    --cert /etc/kubernetes/pki/etcd/peer.crt \
+    --key /etc/kubernetes/pki/etcd/peer.key \
+    member list
+  register: etcd_members
+
+- debug: msg="{{ etcd_members.stdout_lines }}"
+
+- name: Get time
+  shell: date "+%Y-%m-%d_%H_%M_%S"
+  register: time
+
+- name: Set time env 
+  set_fact:
+    timestamp: "{{ time.stdout }}"
+
+- name: Backup etcd
+  shell: |
+    mkdir -p {{ backup_dir }}
+    sudo ETCDCTL_API=3 etcdctl \
+    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+    --cert=/etc/kubernetes/pki/etcd/peer.crt \
+    --key=/etc/kubernetes/pki/etcd/peer.key \
+    snapshot save {{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ timestamp }}.db
+
+- name: Backup all namespaces
+  shell: |
+    kubectl get all --all-namespaces -o yaml > \
+    {{ backup_dir }}/all-resources-backup-{{ timestamp }}.yaml
+  # Restore: kubectl apply -f all-resources-backup.yaml
+
+- name: Get backup files
+  shell: (cd {{ backup_dir }}; find . -name "*db" -o -name "*yaml" -type f) | cut -d'/' -f2
+  register: files_to_copy
+
+- name: Copy yaml with all resources backup to local
+  fetch: 
+    src: "{{ backup_dir }}/all-resources-backup-{{ timestamp }}.yaml"
+    dest: "{{ backup_ansible_dir }}/"
+    flat: true
+
+- name: Copy etcd backup to local
+  fetch: 
+    src: "{{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ timestamp }}.db"
+    dest: "{{ backup_ansible_dir }}/"
+    flat: true
+
+- debug: msg="Backup file {{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ timestamp }}.db"
+
+- name: Backup PVC
+  debug: msg="Можно использовать Velero, например."
+  when: inventory_hostname == first_control_plane

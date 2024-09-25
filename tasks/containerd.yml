@@ -1,0 +1,78 @@
+- name: Download Containerd
+  command: wget -N "{{ containerd_distr_url }}"
+
+- name: Download Sha256
+  command: wget -N "{{ containerd_distr_url }}.sha256sum"
+
+- name: Check Sha256 for {{ __containerd_distr_filename }}
+  shell: sha256sum -c "{{ __containerd_distr_filename }}.sha256sum"
+  register: return_msg
+  failed_when: return_msg.rc != 0
+
+- name: Extract TAR with containerd
+  command: "tar Cxzvf /usr/local {{ __containerd_distr_filename }}"
+
+- name: Enable service
+  shell: |
+    wget https://raw.githubusercontent.com/containerd/containerd/main/containerd.service
+    mkdir -p /usr/local/lib/systemd/system/
+    mv containerd.service /usr/local/lib/systemd/system/containerd.service
+    systemctl daemon-reload
+    systemctl enable --now containerd
+
+- name: Download runc
+  command: wget -N "{{ runc_distr_url }}"
+
+- name: Download runc asc
+  command: wget -N "{{ runc_distr_url }}.asc"
+
+#- name: Check Signature for {{ __runc_distr_filename }}
+#  shell: gpg --verify "{{ __runc_distr_filename }}.asc" "{{ __runc_distr_filename }}"
+#  register: return_msg
+#  failed_when: return_msg.rc != 0
+
+- name: Install runc
+  command: install -m 755 runc.amd64 /usr/local/sbin/runc
+
+- name: Download CNI plugins
+  command: wget -N "{{ cni_plugins_distr_url }}"
+
+- name: Download Sha256
+  command: wget -N "{{ cni_plugins_distr_url }}.sha256"
+
+- name: Check Sha256 for {{ __cni_plugins_distr_filename }}
+  shell: sha256sum -c "{{ __cni_plugins_distr_filename }}.sha256"
+  register: return_msg
+  failed_when: return_msg.rc != 0
+
+- name: Install CNI plugins
+  shell: |
+    mkdir -p /opt/cni/bin
+    tar Cxzvf /opt/cni/bin {{ __cni_plugins_distr_filename }}
+
+# Set systemd as cgroup driver for containerd 
+- name: 'Create dir /etc/containerd'
+  file:
+    path: /etc/containerd
+    state: directory
+
+- name: Create default config
+  shell: containerd config default > /etc/containerd/config.toml
+
+- name: Set SystemdCgroup = true
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: "SystemdCgroup = false"
+    replace: 'SystemdCgroup = true'
+
+- name: Set new version of sandbox
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: "pause:3.8"
+    replace: 'pause:3.9'
+
+- name: Restart containerd
+  service:
+    name: containerd
+    state: restarted
+    enabled: true

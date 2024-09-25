@@ -1,0 +1,62 @@
+---
+# defaults file for opercoder.k8s
+
+# Переменные k8s
+k8s_controlplane_port: 6443
+k8s_version: "1.99"
+k8s_endpoint: lb.local
+
+# Маппинг версий
+k8s:
+  - version: "1.31"
+    containerd: "1.7.21"
+    runc: "1.1.13"
+    cni_plugins: "1.1.13"
+  - version: "1.30"
+    containerd: "1.7.21"
+    runc: "1.1.13"
+    cni_plugins: "1.1.13"
+
+# Переменные для резервного копирования
+backup_dir: "~/backup_k8s_test/"
+backup_ansible_dir: "/Users/macbook/backup"
+time_for_restore: "2024-09-23_11:32:59"
+
+# Переменные для подключения s3 от яндекса 
+yandex_s3_bucket: bucket
+yandex_s3_key: key
+yandex_s3_secret: secret
+
+# Переменные для установки
+zabbix_server_host: zabbix.agrohistory.local
+zabbix_monitoring_version: 6.4
+
+containerd_distr_url: https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-amd64.tar.gz
+__containerd_distr_filename: "{{ containerd_distr_url | regex_replace('.*\/','') }}"
+
+runc_distr_url: https://github.com/opencontainers/runc/releases/download/v1.1.13/runc.amd64
+__runc_distr_filename: "{{ runc_distr_url | regex_replace('.*\/','') }}"
+
+cni_plugins_distr_url: https://github.com/containernetworking/plugins/releases/download/v1.5.1/cni-plugins-linux-amd64-v1.5.1.tgz
+__cni_plugins_distr_filename: "{{ cni_plugins_distr_url | regex_replace('.*\/','') }}"
+
+# Устанавливаемые модули
+install_packages:
+  - wget
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gpg
+  - etcd-client
+
+ingress_definitions: []
+#ingress_definitions:
+  # - host: kub-lb-t-01.agrohistory.local
+  #   namespace: kubernetes-dashboard
+  #   services:
+  #     - path: dashboard
+  #       name: kubernetes-dashboard-web
+  #       port: 8000
+  #   annotations: 
+  #     kubernetes.io/ingress.class: "nginx"
+  #   tls: []

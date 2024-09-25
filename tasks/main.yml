@@ -1,0 +1,148 @@
+---
+# tasks file for opercoder.k8s
+
+- block:
+    - name: check free port for controlplane
+      shell: ss -tlnp | grep ":{{ k8s_controlplane_port }} " | wc -l
+      register: check_port
+    - name: tasks for installing requirements
+      include_tasks:
+        file: requirements.yml
+  tags: ['install']
+
+- name: 'Check for kubelet configuration'
+  ansible.builtin.stat:
+    path: '/var/lib/kubelet/config.yaml'
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: 'kubelet_conf'
+  tags: ['always']
+
+- name: 'Get first control-plane in inventory'
+  ansible.builtin.set_fact:
+    first_control_plane: "{{ groups['control_planes'] | first }}"
+  tags: ['always']
+
+- name: tasks for installing k8s
+  include_tasks:
+    file: install.yml
+    apply:
+      tags: ['install']
+  tags: ['install']
+  when: >
+    ('install' in ansible_run_tags or 
+    'init' in ansible_run_tags) and
+    not kubelet_conf['stat']['exists']
+
+- name: tasks for init k8s
+  include_tasks:
+    file: init.yml
+    apply:
+      tags: ['install','init']
+  tags: ['install','init']
+  when: >
+    'install' in ansible_run_tags or 
+    'init' in ansible_run_tags
+
+- name: add/delete worker nodes by changes in inventory file
+  include_tasks:
+    file: scale_worker_nodes.yml
+    apply:
+      tags: ['scale-worker-nodes']
+  tags: ['scale-worker-nodes']
+  when: >
+    'scale-worker-nodes' in ansible_run_tags
+
+- block:
+    - name: add control plane node with var cp
+      include_tasks:
+        file: scale_control_planes.yml
+        apply:
+          tags: ['add-cp']
+      tags: ['add-cp']
+      when: "'add-cp' in ansible_run_tags"
+    - name: delete control plane node with var cp
+      include_tasks:
+        file: scale_control_planes.yml
+        apply:
+          tags: ['del-cp']
+      tags: ['del-cp']
+      when: "'del-cp' in ansible_run_tags"
+  when: > 
+    cp is defined and
+    inventory_hostname in groups['control_planes']
+
+- name: Install additional soft (zabbix)
+  include_tasks:
+    file: install_additional_soft.yml
+    apply:
+      tags: ['add-soft']
+  tags: ['add-soft']
+  when: "'add-soft' in ansible_run_tags"
+
+- name: Add ingress
+  include_tasks:
+    file: ingress.yml
+    apply:
+      tags: ['ingress']
+  tags: ['ingress']
+  when: > 
+    'ingress' in ansible_run_tags and
+    inventory_hostname == first_control_plane
+
+- name: Add Yandex S3
+  include_tasks:
+    file: yandex-s3.yml
+    apply:
+      tags: ['s3']
+  tags: ['s3']
+  when: > 
+    's3' in ansible_run_tags and
+    inventory_hostname == first_control_plane
+
+- name: Upgrade cluster
+  include_tasks:
+    file: upgrade-k8s.yml
+    apply:
+      tags: ['upgrade']
+  tags: ['upgrade']
+  when: > 
+    'upgrade' in ansible_run_tags
+
+- name: tasks for reset k8s on server
+  shell: |
+    echo y | kubeadm reset
+    rm -rf /var/lib/etcd/
+    rm -rf /etc/kubernetes/
+  tags: ['reset']
+  when: "'reset' in ansible_run_tags"
+
+- name: tasks for delete k8s on server
+  include_tasks:
+    file: delete-k8s.yml
+    apply:
+      tags: ['delete']
+  tags: ['delete']
+  when: > 
+    'delete' in ansible_run_tags
+
+- name: tasks for backup k8s
+  include_tasks:
+    file: backup-k8s.yml
+    apply:
+      tags: ['backup']
+  tags: ['backup']
+  when: > 
+    'backup' in ansible_run_tags and
+    inventory_hostname == first_control_plane
+
+- name: restore from backup k8s
+  include_tasks:
+    file: restore-k8s.yml
+    apply:
+      tags: ['restore']
+  tags: ['restore']
+  when: > 
+    'restore' in ansible_run_tags and
+    inventory_hostname in groups['control_planes']
