@@ -1,3 +1,15 @@
+- name: Get time
+  shell: date "+%Y-%m-%d_%H_%M_%S"
+  register: time
+  when: inventory_hostname == first_control_plane
+
+- name: Set time env 
+  set_fact:
+    timestamp: "{{ time['stdout'] }}"
+  delegate_to: "{{ item }}"
+  with_items: "{{ groups['control_planes'] }}"
+  run_once: true
+ 
 - debug: msg="Загрузится бэкап от {{ backup_time }}"
 
 - name: Set manifests_backup
@@ -66,14 +78,9 @@
     {{ backup_dir }}/{{ backup_db }} \
     --name {{ inventory_hostname }} \
     --initial-cluster {{ initial_cluster_str }} \
-    --initial-cluster-token etcd-{{ backup_time }} \
+    --initial-cluster-token etcd-{{ timestamp }} \
     --initial-advertise-peer-urls https://{{ peer_ip_str }}:2380 \
     --data-dir {{ etcd_dir_to_restore }}
-
-- name: Stop kubelet
-  systemd_service:
-    name: kubelet
-    state: stopped
 
 - name: Get etcd containers id
   shell: |
@@ -86,60 +93,66 @@
     etcd_id_str: "{{ etcd_id.stdout }}"
 
 - name: Stop and remove etcd container
-  shell: |
-    crictl -r unix:///run/containerd/containerd.sock stop {{ etcd_id_str }}
-    sleep 5
-    crictl -r unix:///run/containerd/containerd.sock rm {{ etcd_id_str }}
-  ignore_errors: true
+  command: mv /etc/kubernetes/manifests/etcd.yaml {{ backup_dir }}
 
 - name: Change etcd manifest - initial-cluster
   lineinfile:
-    dest: "/etc/kubernetes/manifests/etcd.yaml"
+    dest: "{{ backup_dir }}/etcd.yaml"
     regexp: '^(.*)initial-cluster=(.*)'
     line: "    - --initial-cluster={{ initial_cluster_str }}"
 
 - name: Check if initial-cluster-state is existed
   lineinfile:
     state: absent
-    path: "//etc/kubernetes/manifests/etcd.yaml"
+    path: "{{ backup_dir }}/etcd.yaml"
     regexp: "initial-cluster-state="
   check_mode: true
   changed_when: false
-  register: check_state
+  register: check_state_init
+
+- name: Check if initial-cluster-state is existed
+  lineinfile:
+    state: absent
+    path: "{{ backup_dir }}/etcd.yaml"
+    regexp: "initial-cluster-token="
+  check_mode: true
+  changed_when: false
+  register: check_state_token
 
 - name: Define initial-cluster-state if undefined
   lineinfile:
     state: present
-    path: "/etc/kubernetes/manifests/etcd.yaml"
+    path: "{{ backup_dir }}/etcd.yaml"
     line: "    - --initial-cluster-state=XXX"
     insertafter: "initial-cluster="
-  when: check_state.found == 0
+  when: check_state_init.found == 0
 
-- name: Change etcd manifest - initial-cluster-state on first_control_plane
+- name: Define initial-cluster-token if undefined
   lineinfile:
-    dest: "/etc/kubernetes/manifests/etcd.yaml"
+    state: present
+    path: "{{ backup_dir }}/etcd.yaml"
+    line: "    - --initial-cluster-token=XXX"
+    insertafter: "initial-cluster="
+  when: check_state_token.found == 0
+
+- name: Change etcd manifest - initial-cluster-token
+  lineinfile:
+    dest: "{{ backup_dir }}/etcd.yaml"
+    regexp: '^(.*)initial-cluster-token=(.*)'
+    line: "    - --initial-cluster-token=etcd-{{ timestamp }}"
+
+- name: Change etcd manifest - initial-cluster-state
+  lineinfile:
+    dest: "{{ backup_dir }}/etcd.yaml"
     regexp: '^(.*)initial-cluster-state=(.*)'
     line: "    - --initial-cluster-state=new"
-  when: inventory_hostname == first_control_plane
 
-- name: Test for line initial-cluster-state
-  shell: grep -c "" /etc/kubernetes/manifests/etcd.yaml || true
-  register: test_grep
-
-- name: Change etcd manifest - initial-cluster-state on other control_planes
+- name: Change etcd manifest
   lineinfile:
-    dest: "/etc/kubernetes/manifests/etcd.yaml"
-    regexp: '^(.*)initial-cluster-state=(.*)'
-    line: "    - --initial-cluster-state=existing"
-  when: inventory_hostname != first_control_plane
+    dest: "{{ backup_dir }}/etcd.yaml"
+    regexp: '^(.*)path:(.*)/var/lib/etcd(.*)'
+    line: "      path: {{ etcd_dir_to_restore }}"
+    backrefs: yes
 
-- name: Copy backup data
-  shell: |
-    rm -rf /var/lib/etcd/*
-    mv {{ etcd_dir_to_restore }}/* /var/lib/etcd/
-    rm -rf {{ etcd_dir_to_restore }}
-
-- name: Start kubelet
-  systemd_service:
-    name: kubelet
-    state: started
+- name: Start etcd
+  command: mv {{ backup_dir }}/etcd.yaml /etc/kubernetes/manifests/etcd.yaml

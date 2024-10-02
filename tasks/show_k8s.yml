@@ -5,10 +5,10 @@
 
 - name: 'Get etcd peers'
   shell: |
-    "ETCDCTL_API=3 etcdctl endpoint status --write-out=table \
+    ETCDCTL_API=3 etcdctl endpoint status --write-out=table \
     --cluster --cacert=/etc/kubernetes/pki/etcd/ca.crt \
     --cert=/etc/kubernetes/pki/etcd/server.crt \
-    --key=/etc/kubernetes/pki/etcd/server.key"
+    --key=/etc/kubernetes/pki/etcd/server.key
   register: etcd_peers
 
 - name: Show k8s status
