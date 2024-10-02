@@ -76,3 +76,8 @@
       when: pods_system.stdout.find('ingress-nginx') == -1
 
   when: inventory_hostname == first_control_plane
+
+- name: Include install etcdctl
+  include_tasks:
+    file: etcdctl.yml
+  when: inventory_hostname in groups['control_planes']

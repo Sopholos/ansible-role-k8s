@@ -81,16 +81,6 @@
   tags: ['add-soft']
   when: "'add-soft' in ansible_run_tags"
 
-- name: Add ingress
-  include_tasks:
-    file: ingress.yml
-    apply:
-      tags: ['ingress']
-  tags: ['ingress']
-  when: > 
-    'ingress' in ansible_run_tags and
-    inventory_hostname == first_control_plane
-
 - name: Add Yandex S3
   include_tasks:
     file: yandex-s3.yml

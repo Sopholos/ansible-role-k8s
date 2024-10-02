@@ -42,6 +42,10 @@
       shell: |
         kubeadm upgrade apply {{ kubeadm_version.stdout }} --ignore-preflight-errors=all -y
 
+    - name: Include install etcdctl
+      include_tasks:
+        file: etcdctl.yml
+
   when: inventory_hostname == first_control_plane
   any_errors_fatal: true
 
@@ -54,6 +58,13 @@
   when: >
     inventory_hostname == first_control_plane and 
     item != first_control_plane
+
+- name: Include install etcdctl
+  include_tasks:
+    file: etcdctl.yml
+  when: |
+    inventory_hostname in groups['control_planes'] and
+    inventory_hostname != first_control_plane
 
 - name: Upgrade kubelet, kubectl
   shell: |
@@ -84,8 +95,7 @@
 
 - name: Delete local kube_config
   local_action: ansible.builtin.command rm -f /tmp/.kube_config
-  become: no
-
+  become: false
 
 - name: Update Worker Nodes
   shell: |

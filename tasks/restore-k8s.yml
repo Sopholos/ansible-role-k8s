@@ -1,14 +1,50 @@
+- debug: msg="Загрузится бэкап от {{ backup_time }}"
+
 - name: Set manifests_backup
   ansible.builtin.set_fact:
     manifests_backup: '~/manifests_backup'
+
+- name: Copy to remote file with backup members
+  copy: 
+    src: "{{ backup_ansible_dir }}/{{ backup_members }}"
+    dest: "{{ backup_dir }}"
+
+- name: Get peer ip
+  shell: |
+    cat {{ backup_dir }}/{{ backup_members }} | grep {{ inventory_hostname }} | \
+    sed 's/.2380.*//' | sed 's/.*https...//'
+  register: peer_ip
+
+- name: Get initial-cluster
+  shell: |
+    cat  {{ backup_dir }}/{{ backup_members }} | \
+    cut -d',' -f 3,4 | sed 's/, /=/' | tr -d '\n' | sed 's/ /,/g' | sed 's/,//'    
+  register: initial_cluster
+
+- name: Set peer ip
+  ansible.builtin.set_fact:
+    peer_ip_str: "{{ peer_ip.stdout }}"
+
+- name: Set initial-cluster
+  ansible.builtin.set_fact:
+    initial_cluster_str: "{{ initial_cluster.stdout }}"
 
 - name: Set k8s_manifests
   ansible.builtin.set_fact:
     k8s_manifests: '/etc/kubernetes/manifests'
 
+- name: Set k8s_pki_etcd
+  ansible.builtin.set_fact:
+    k8s_pki_etcd: '/etc/kubernetes/pki/etcd'
+
+- debug: 
+    msg:
+      - "{{ peer_ip_str }}"
+      - "{{ initial_cluster_str }}"
+
 - name: Copy to remote
   copy: 
-    src: "{{ backup_ansible_dir }}/{{ backup_file }}"
+    src: "{{ backup_ansible_dir }}/{{ backup_db }}"
     dest: "{{ backup_dir }}"
 
 - name: Check snapshot
@@ -18,7 +54,7 @@
     --cert /etc/kubernetes/pki/etcd/peer.crt \
     --key /etc/kubernetes/pki/etcd/peer.key \
     --write-out=table \
-    snapshot status {{ backup_dir }}/{{ backup_file }}
+    snapshot status {{ backup_dir }}/{{ backup_db }}
   register: snapshot_status
 
 - debug: msg="{{ snapshot_status.stdout_lines }}"
@@ -26,67 +62,84 @@
 - name: Restore snapshot to new path
   shell: |
     rm -rf {{ etcd_dir_to_restore }}
-    sudo ETCDCTL_API=3 etcdctl \
-    --data-dir {{ etcd_dir_to_restore }} \
-    snapshot restore {{ backup_dir }}/{{ backup_file }}
+    ETCDCTL_API=3 etcdutl snapshot restore \
+    {{ backup_dir }}/{{ backup_db }} \
+    --name {{ inventory_hostname }} \
+    --initial-cluster {{ initial_cluster_str }} \
+    --initial-cluster-token etcd-{{ backup_time }} \
+    --initial-advertise-peer-urls https://{{ peer_ip_str }}:2380 \
+    --data-dir {{ etcd_dir_to_restore }}
 
-- name: Creates directory for manifests_backup
-  ansible.builtin.file:
-    path: "{{ manifests_backup }}"
-    state: directory
-
-- name: Stop kube-apiserver, etcd, scheduler, controller-manager
-  shell: "mv {{ k8s_manifests }}/* {{ manifests_backup }}"
-
-- name: Wait while stopped
-  shell: |
-    count=$(crictl -r unix:///run/containerd/containerd.sock ps | grep -E 'kube-apiserver | etcd | kube-scheduler | kube-controller-manager' | wc -l)
-    while [ $count -ne 0 ]; do
-      sleep 5
-      count=$(crictl -r unix:///run/containerd/containerd.sock ps | grep -E 'kube-apiserver | etcd | kube-scheduler | kube-controller-manager' | wc -l)
-    done
-    
 - name: Stop kubelet
   systemd_service:
     name: kubelet
     state: stopped
 
-- name: Check stopped kube-apiserver, etcd, scheduler, controller-manager
-  shell: sudo crictl -r unix:///run/containerd/containerd.sock ps
-  register: container_list
+- name: Get etcd containers id
+  shell: |
+    crictl -r unix:///run/containerd/containerd.sock ps \
+    | grep etcd | awk '{print $1}'
+  register: etcd_id
 
-- debug: msg="{{ container_list.stdout_lines }}"
+- name: Set etcd_id
+  ansible.builtin.set_fact:
+    etcd_id_str: "{{ etcd_id.stdout }}"
 
-- name: Change etcd manifest
+- name: Stop and remove etcd container
+  shell: |
+    crictl -r unix:///run/containerd/containerd.sock stop {{ etcd_id_str }}
+    sleep 5
+    crictl -r unix:///run/containerd/containerd.sock rm {{ etcd_id_str }}
+  ignore_errors: true
+
+- name: Change etcd manifest - initial-cluster
   lineinfile:
-    dest: "{{ manifests_backup }}/etcd.yaml"
-    regexp: '^(.*)path:(.*)/var/lib/etcd(.*)'
-    line: "      path: {{ etcd_dir_to_restore }}"
-    backrefs: yes
+    dest: "/etc/kubernetes/manifests/etcd.yaml"
+    regexp: '^(.*)initial-cluster=(.*)'
+    line: "    - --initial-cluster={{ initial_cluster_str }}"
 
-- name: Start kube-apiserver, etcd, scheduler, controller-manager
-  shell: mv {{ manifests_backup }}/* {{ k8s_manifests }}
+- name: Check if initial-cluster-state is existed
+  lineinfile:
+    state: absent
+    path: "//etc/kubernetes/manifests/etcd.yaml"
+    regexp: "initial-cluster-state="
+  check_mode: true
+  changed_when: false
+  register: check_state
+
+- name: Define initial-cluster-state if undefined
+  lineinfile:
+    state: present
+    path: "/etc/kubernetes/manifests/etcd.yaml"
+    line: "    - --initial-cluster-state=XXX"
+    insertafter: "initial-cluster="
+  when: check_state.found == 0
+
+- name: Change etcd manifest - initial-cluster-state on first_control_plane
+  lineinfile:
+    dest: "/etc/kubernetes/manifests/etcd.yaml"
+    regexp: '^(.*)initial-cluster-state=(.*)'
+    line: "    - --initial-cluster-state=new"
+  when: inventory_hostname == first_control_plane
+
+- name: Test for line initial-cluster-state
+  shell: grep -c "" /etc/kubernetes/manifests/etcd.yaml || true
+  register: test_grep
+
+- name: Change etcd manifest - initial-cluster-state on other control_planes
+  lineinfile:
+    dest: "/etc/kubernetes/manifests/etcd.yaml"
+    regexp: '^(.*)initial-cluster-state=(.*)'
+    line: "    - --initial-cluster-state=existing"
+  when: inventory_hostname != first_control_plane
+
+- name: Copy backup data
+  shell: |
+    rm -rf /var/lib/etcd/*
+    mv {{ etcd_dir_to_restore }}/* /var/lib/etcd/
+    rm -rf {{ etcd_dir_to_restore }}
 
 - name: Start kubelet
   systemd_service:
     name: kubelet
     state: started
-
-- name: Wait while started
-  shell: |
-    count=$(crictl -r unix:///run/containerd/containerd.sock ps | grep -E 'kube-apiserver | etcd | kube-scheduler | kube-controller-manager' | wc -l)
-    while [ $count -ne 4 ]; do
-      sleep 5
-      count=$(crictl -r unix:///run/containerd/containerd.sock ps | grep -E 'kube-apiserver | etcd | kube-scheduler | kube-controller-manager' | wc -l)
-    done
-
-- name: Check etcd cluster
-  shell: |
-    sudo ETCDCTL_API=3 etcdctl endpoint status \
-    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
-    --cert=/etc/kubernetes/pki/etcd/server.crt \
-    --key=/etc/kubernetes/pki/etcd/server.key \
-    --cluster -w table
-  register: etcd_status
-
-- debug: msg="{{ etcd_status.stdout_lines }}"
