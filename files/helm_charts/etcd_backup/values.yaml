@@ -1,0 +1,10 @@
+cronJob:
+  name: etcd-backup
+  schedule: "0 * * * *"
+  image: "bitnami/etcd:latest"
+  backupDir: "/backup" # Directory to store backup in the container
+
+serviceAccount:
+  name: etcd-backup-sa
+
+namespace: kube-system

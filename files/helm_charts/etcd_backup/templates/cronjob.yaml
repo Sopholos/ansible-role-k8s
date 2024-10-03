@@ -1,0 +1,29 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ .Values.cronJob.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  schedule: {{ .Values.cronJob.schedule }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: {{ .Values.serviceAccount.name }}
+          containers:
+            - name: etcd-backup-container
+              image: {{ .Values.cronJob.image }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  etcdctl snapshot save /backup/etcd-backup-$(date +%Y%m%d%H%M%S).db
+              volumeMounts:
+                - name: backup-volume
+                  mountPath: {{ .Values.cronJob.backupDir }}
+          restartPolicy: OnFailure
+          volumes:
+            - name: backup-volume
+              hostPath:
+                path: /root # Change this to your local directory on the node
+                type: DirectoryOrCreate

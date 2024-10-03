@@ -6,6 +6,46 @@ Role Name
 
 В случае использования нескольких control-plane подготовьте внешний TCP балансировщик и укажите в переменной k8s_endpoint его адрес. В случае одного control-plane укажите его адрес.
 
+### Инструкция по развертыванию
+1. Создайте машины под кластер.
+2. Укажите в inventory сервера и переменные:
+```bash
+control_planes:
+    hosts:
+        kub-mn-01:
+        kub-mn-02:
+
+worker_nodes:
+    hosts:
+        kub-wn-01:
+
+k8s:
+    children:
+        control_planes:
+        worker_nodes:
+    vars:
+        k8s_endpoint: "kub-lb.domain.local"
+        k8s_controlplane_port: "6443"
+        k8s_version: "1.31"
+
+        backup_dir: "~/backup_k8s_remote/"
+        backup_ansible_dir: "/backup_local"
+        backup_time: ""
+        backup_db: "etcd-{{ backup_time }}.db"
+        backup_members: "members-{{ backup_time }}.txt"
+        backup_manifests: "all-resources-backup-{{ backup_time }}.yaml"
+        etcd_dir_to_restore: "/var/lib/etcd-{{ backup_time }}"
+
+        zabbix_server_host: "zabbix.domain.local"
+        zabbix_monitoring_version: "6.4"
+
+        yandex_s3_bucket: "bucket"
+        yandex_s3_key: "key"
+        yandex_s3_secret: "secret"
+```
+3. Запустите роль с тегом -tags install.  
+Она установит на сервера containerd, runc, пакеты из install_packages
+
 Requirements
 ------------
 
@@ -42,6 +82,7 @@ Requirements
 - backup_time // Время бэкапа для восстановления
 - backup_db // Файл с бэкапом для восстановления кластера
 - backup_members // Файл с бэкапом состава кластера etcd
+- backup_manifests // Файл с бэкапом манифестов всех развернутых ресурсов
 - etcd_dir_to_restore // Директория с восстановленными данными для etcd
 
 Dependencies
