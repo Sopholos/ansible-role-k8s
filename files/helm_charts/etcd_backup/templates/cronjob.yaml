@@ -1,4 +1,4 @@
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: {{ .Values.cronJob.name }}
@@ -9,21 +9,43 @@ spec:
     spec:
       template:
         spec:
+          nodeSelector:
+            etcd: "yes"
           serviceAccountName: {{ .Values.serviceAccount.name }}
+          {{- if .Values.image.credentials }}
+          imagePullSecrets:
+            - name: {{ .Chart.Name }}-registrykey
+          {{- end }}
           containers:
-            - name: etcd-backup-container
-              image: {{ .Values.cronJob.image }}
-              command:
-                - /bin/sh
-                - -c
-                - |
-                  etcdctl snapshot save /backup/etcd-backup-$(date +%Y%m%d%H%M%S).db
-              volumeMounts:
-                - name: backup-volume
-                  mountPath: {{ .Values.cronJob.backupDir }}
+          - name: {{ .Values.cronJob.name }}
+            image: "{{ .Values.image.registry }}/{{ .Values.image.project }}/{{ .Values.image.name }}:{{ .Values.image.tag  }}"
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            command: ["/bin/sh","-c"]
+            args:
+              - |
+                date
+                etcdctl snapshot save {{ .Values.cronJob.backupDir }}/etcd-backup.db \
+                --cacert /etc/kubernetes/pki/etcd/ca.crt \
+                --cert /etc/kubernetes/pki/etcd/peer.crt \
+                --key /etc/kubernetes/pki/etcd/peer.key \
+                --endpoints $NODE_IP:2379
+            env:
+              - name: NODE_IP
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.hostIP
+            volumeMounts:
+              - name: backup-volume
+                mountPath: {{ .Values.cronJob.backupDir }}
+              - name: etcd-certs
+                mountPath: /etc/kubernetes/pki/etcd/
           restartPolicy: OnFailure
           volumes:
             - name: backup-volume
               hostPath:
-                path: /root # Change this to your local directory on the node
+                path: /backup_etcd
+                type: DirectoryOrCreate
+            - name: etcd-certs
+              hostPath:
+                path: /etc/kubernetes/pki/etcd/
                 type: DirectoryOrCreate

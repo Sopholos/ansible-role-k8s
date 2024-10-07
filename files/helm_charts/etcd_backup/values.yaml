@@ -1,10 +1,22 @@
 cronJob:
   name: etcd-backup
-  schedule: "0 * * * *"
+  schedule: "0 3 * * *"
   image: "bitnami/etcd:latest"
-  backupDir: "/backup" # Directory to store backup in the container
+  backupDir: "/tmp/backup"
 
 serviceAccount:
   name: etcd-backup-sa
 
 namespace: kube-system
+
+etcd_podname: etcd-kub-mn-t-01
+
+image:
+  registry: gitlab.agroassist.ru:5050
+  project: "devops/kubernetes/registry"
+  name: "etcd"
+  tag: "20241004-1455"
+  pullPolicy: IfNotPresent
+  credentials:
+    username: k8s
+    password: gldt-y5ZGo4syvN3UFUnwicD3

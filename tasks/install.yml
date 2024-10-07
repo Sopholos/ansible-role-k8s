@@ -1,10 +1,3 @@
-- block:
-    - name: "end play if port is busy"
-      debug:
-        msg: "Port {{ k8s_controlplane_port }} is busy! Playbook stopped."
-    - meta: end_play
-  when: check_port.stdout != "0"
-
 - name: Ensure br_netfilter is enabled.
   modprobe:
     name: br_netfilter

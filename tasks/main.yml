@@ -1,14 +1,10 @@
 ---
 # tasks file for opercoder.k8s
 
-- block:
-    - name: check free port for controlplane
-      shell: ss -tlnp | grep ":{{ k8s_controlplane_port }} " | wc -l
-      register: check_port
-    - name: tasks for installing requirements
-      include_tasks:
-        file: requirements.yml
-  tags: ['install']
+- name: tasks for installing requirements
+  include_tasks:
+    file: requirements.yml
+  tags: ['always']
 
 - name: 'Check for kubelet configuration'
   ansible.builtin.stat:
@@ -28,11 +24,13 @@
   include_tasks:
     file: install.yml
     apply:
-      tags: ['install']
-  tags: ['install']
+      tags: ['install','add-cp','scale-worker-nodes']
+  tags: ['install','add-cp','scale-worker-nodes']
   when: >
     ('install' in ansible_run_tags or 
-    'init' in ansible_run_tags) and
+    'init' in ansible_run_tags or 
+    'add-cp' in ansible_run_tags or
+    'scale-worker-nodes' in ansible_run_tags) and
     not kubelet_conf['stat']['exists']
 
 - name: tasks for init k8s
@@ -43,7 +41,7 @@
   tags: ['install','init']
   when: >
     'install' in ansible_run_tags or 
-    'init' in ansible_run_tags
+    'init' in ansible_run_tags or
 
 - name: add/delete worker nodes by changes in inventory file
   include_tasks:
@@ -73,9 +71,9 @@
     cp is defined and
     inventory_hostname in groups['control_planes']
 
-- name: Install additional soft (zabbix)
+- name: Install helm soft (zabbix, dashboard)
   include_tasks:
-    file: install_additional_soft.yml
+    file: install_helm_soft.yml
     apply:
       tags: ['add-soft']
   tags: ['add-soft']

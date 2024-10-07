@@ -81,7 +81,6 @@
     'del-cp' in ansible_run_tags and
     inventory_hostname == first_control_plane
 
-
 # Add control plane
 - block:  
     - name: get tokens
@@ -96,11 +95,29 @@
       include_tasks:
         file: clean_tokens.yml
       when: inventory_hostname == first_control_plane
-    - name: Include install etcdctl
+    - name: Install soft on k8s member
       include_tasks:
-        file: etcdctl.yml
+        file: install_soft_k8s_member.yml
       when: inventory_hostname == cp
   when: "'add-cp' in ansible_run_tags"
+
+- name: Allow to start pods on control-planes
+  shell: kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+  ignore_errors: true
+  when: inventory_hostname == first_control_plane
+
+- block:
+    - name: Create kube directory
+      ansible.builtin.file:
+        path: /root/.kube
+        state: directory
+    - name: Copy admin.conf
+      command: cp /etc/kubernetes/admin.conf /root/.kube/config
+    - name: Add etcd label
+      shell: kubectl label nodes {{ inventory_hostname }} etcd=yes
+  when: |
+    inventory_hostname == cp and
+    'add-cp' in ansible_run_tags
 
 # Show status
 - name: Add show status

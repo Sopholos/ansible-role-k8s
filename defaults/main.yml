@@ -47,7 +47,6 @@ install_packages:
   - ca-certificates
   - curl
   - gpg
-  - etcd-client
 
 ingress_definitions: []
 #ingress_definitions:

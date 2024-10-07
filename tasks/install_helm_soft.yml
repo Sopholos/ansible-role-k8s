@@ -48,4 +48,16 @@
         # kubectl -n kube-system create token admin-user
       when: "'kubernetes-dashboard' not in helm_list.stdout_lines"
 
+    - block:
+        - name: Copy helm_charts/etcd_backup
+          copy:
+            src: helm_charts/
+            dest: ~/helm_charts/
+        - name: Helm package
+          shell: helm package ~/helm_charts/etcd_backup
+        - name: Helm install
+          shell: |
+            helm install etcd-backup ~/helm_charts/etcd_backup --namespace kube-system
+      when: "'etcd-backup' not in helm_list.stdout_lines"
+
   when: inventory_hostname == first_control_plane

@@ -105,7 +105,7 @@ Example Playbook
 1. Удаление control plane с etcd.
 `pwsh ./Servers/Deployment/k8s/test/del-cp-k8s.ps1 -cp kub-wn-t-01`
 1. Установка дополнительного ПО (zabbix, kubernetes dashboard).
-`pwsh ./Servers/Deployment/k8s/test/install_additional_soft.ps1`
+`pwsh ./Servers/Deployment/k8s/test/install_helm_soft.ps1`
 1. Добавление/удаление ingress в соответствии с заданной переменной ingress_definitions.  
 `pwsh ./Servers/Deployment/k8s/test/ingress.ps1`
 Ингрессы, которые отсутствуют в переменной, а в кластере существуют - __удаляются!!!__
