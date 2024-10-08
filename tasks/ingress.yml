@@ -1,0 +1,32 @@
+- name: Get all ingresses
+  shell: kubectl get ingress --all-namespaces -o name | cut -d/ -f2
+  register: ingresses
+
+- name: Get all k8s ingresses
+  set_fact:
+    all_k8s_ingresses: "{{ ingresses.stdout_lines }}"
+
+- name: Get all k8s from var ingress_definitions
+  set_fact:
+    all_infile_ingresses: "{{ ingress_definitions.host | default([]) }}"
+
+- name: Get ingresses for deleting
+  set_fact:
+    to_del: "{{ all_k8s_ingresses | difference(all_infile_ingresses) }}"
+
+- name: Delete ingresses
+  shell: |
+    kubectl delete ingress {{ item }} -n $(kubectl get ingress --all-namespaces | grep {{ item }} | awk '{print $1}')
+  loop: "{{ to_del }}"
+
+- block:
+  
+    - name: Setup ingress file
+      template:
+        src: ingress.yml.j2
+        dest: "~/ingress.yml"
+
+    - name: Apply ingress file
+      shell: kubectl apply -f ~/ingress.yml
+  
+  when: (ingress_definitions|length) > 0
