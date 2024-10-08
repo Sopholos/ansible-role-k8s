@@ -20,19 +20,34 @@
   delegate_to: "{{ first_control_plane }}"
   run_once: true
 
-- block:
-    - debug: msg="Error! {{ cp }} was not add in inventory!!! Add {{ cp }} to control_planes."
-    - meta: end_play
+- fail: msg="Error! {{ cp }} is already control-plane!!!"
+  run_once: true
+  when: >
+    cp in current_cp_nodes_str and
+    'add-cp' in ansible_run_tags
+
+- fail: msg="Error! {{ cp }} is not control-plane!!!"
+  run_once: true
+  when: >
+    cp not in current_cp_nodes_str and
+    'del-cp' in ansible_run_tags
+
+- fail: msg="Error! {{ cp }} was not add in inventory!!! Add {{ cp }} to control_planes."
+  run_once: true
   when: >
     cp not in cp_nodes_to_add and
-    ansible_run_tags == 'add-cp'
+    'add-cp' in ansible_run_tags
 
-- block:
-    - debug: msg="Error! {{ cp }} was not delete from inventory!!! Delete {{ cp }} from control_planes."
-    - meta: end_play
+- fail: msg="Error! {{ cp }} was not delete from inventory!!! Delete {{ cp }} from control_planes."
+  run_once: true
   when: >
     cp not in cp_nodes_to_remove and
-    ansible_run_tags == 'del-cp'
+    'del-cp' in ansible_run_tags
+
+# Show status
+- name: Add show status
+  include_tasks: show_k8s.yml
+  when: inventory_hostname == first_control_plane
 
 # Delete control plane
 - name: Delete control plane
@@ -61,11 +76,10 @@
                 --cert /etc/kubernetes/pki/etcd/peer.crt \
                 --key /etc/kubernetes/pki/etcd/peer.key \
                 member remove {{ id_cp_str }}"
-      when: id_cp_str is defined
+      when: id_cp_str is defined and id_cp_str != ""
   when: >
     'del-cp' in ansible_run_tags and
     inventory_hostname == first_control_plane
-
 
 # Add control plane
 - block:  
@@ -73,6 +87,7 @@
       include_tasks:
         file: get_tokens.yml
       when: inventory_hostname == first_control_plane
+    - debug: msg="{{ k8s_join_command }}"
     - name: Join control plane to cluster
       ansible.builtin.command: "{{ k8s_join_command }}"
       when: inventory_hostname == cp
@@ -80,7 +95,29 @@
       include_tasks:
         file: clean_tokens.yml
       when: inventory_hostname == first_control_plane
+    - name: Install soft on k8s member
+      include_tasks:
+        file: install_soft_k8s_member.yml
+      when: inventory_hostname == cp
   when: "'add-cp' in ansible_run_tags"
+
+- name: Allow to start pods on control-planes
+  shell: kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+  ignore_errors: true
+  when: inventory_hostname == first_control_plane
+
+- block:
+    - name: Create kube directory
+      ansible.builtin.file:
+        path: /root/.kube
+        state: directory
+    - name: Copy admin.conf
+      command: cp /etc/kubernetes/admin.conf /root/.kube/config
+    - name: Add etcd label
+      shell: kubectl label nodes {{ inventory_hostname }} etcd=yes
+  when: |
+    inventory_hostname == cp and
+    'add-cp' in ansible_run_tags
 
 # Show status
 - name: Add show status

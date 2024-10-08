@@ -1,3 +1,11 @@
+- name: Get time
+  shell: date "+%Y-%m-%d_%H_%M_%S"
+  register: time
+
+- name: Set time env 
+  set_fact:
+    timestamp: "{{ time.stdout }}"
+
 - name: Get etcd members
   shell: |
     ETCDCTL_API=3 etcdctl \
@@ -9,13 +17,10 @@
 
 - debug: msg="{{ etcd_members.stdout_lines }}"
 
-- name: Get time
-  shell: date "+%Y-%m-%d_%H_%M_%S"
-  register: time
-
-- name: Set time env 
-  set_fact:
-    timestamp: "{{ time.stdout }}"
+- name: Create backup file with members
+  copy: 
+    content: "{{ etcd_members.stdout_lines | join('\n') }}"
+    dest: "{{ backup_dir }}/members-{{ timestamp }}.txt"
 
 - name: Backup etcd
   shell: |
@@ -24,13 +29,18 @@
     --cacert=/etc/kubernetes/pki/etcd/ca.crt \
     --cert=/etc/kubernetes/pki/etcd/peer.crt \
     --key=/etc/kubernetes/pki/etcd/peer.key \
-    snapshot save {{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ timestamp }}.db
+    snapshot save {{ backup_dir }}/etcd-{{ timestamp }}.db
+  when: inventory_hostname == first_control_plane
 
 - name: Backup all namespaces
   shell: |
     kubectl get all --all-namespaces -o yaml > \
     {{ backup_dir }}/all-resources-backup-{{ timestamp }}.yaml
   # Restore: kubectl apply -f all-resources-backup.yaml
+
+- name: Backup ca.crt
+  shell: cp /etc/kubernetes/pki/etcd/ca.crt {{ backup_dir }}/ca-{{ timestamp }}.crt
+  when: inventory_hostname == first_control_plane
 
 - name: Get backup files
   shell: (cd {{ backup_dir }}; find . -name "*db" -o -name "*yaml" -type f) | cut -d'/' -f2
@@ -44,11 +54,26 @@
 
 - name: Copy etcd backup to local
   fetch: 
-    src: "{{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ timestamp }}.db"
+    src: "{{ backup_dir }}/etcd-{{ timestamp }}.db"
     dest: "{{ backup_ansible_dir }}/"
     flat: true
+  when: inventory_hostname == first_control_plane
 
-- debug: msg="Backup file {{ backup_dir }}/{{ inventory_hostname }}-etcd-{{ timestamp }}.db"
+- name: Copy etcd members to local
+  fetch: 
+    src: "{{ backup_dir }}/members-{{ timestamp }}.txt"
+    dest: "{{ backup_ansible_dir }}/"
+    flat: true
+  when: inventory_hostname == first_control_plane
+
+- name: Copy ca.crt backup to local
+  fetch: 
+    src: "{{ backup_dir }}/ca-{{ timestamp }}.crt"
+    dest: "{{ backup_ansible_dir }}/"
+    flat: true
+  when: inventory_hostname == first_control_plane
+
+- debug: msg="Backup time in file {{ timestamp }}"
 
 - name: Backup PVC
   debug: msg="Можно использовать Velero, например."

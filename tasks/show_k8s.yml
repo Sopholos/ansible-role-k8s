@@ -4,11 +4,11 @@
   register: cluster_nodes 
 
 - name: 'Get etcd peers'
-  command: "kubectl exec etcd-kub-mn-t-01 -n kube-system -- 
-              etcdctl --cacert /etc/kubernetes/pki/etcd/ca.crt \
-              --cert /etc/kubernetes/pki/etcd/peer.crt \
-              --key /etc/kubernetes/pki/etcd/peer.key \
-              member list"
+  shell: |
+    ETCDCTL_API=3 etcdctl endpoint status --write-out=table \
+    --cluster --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+    --cert=/etc/kubernetes/pki/etcd/server.crt \
+    --key=/etc/kubernetes/pki/etcd/server.key
   register: etcd_peers
 
 - name: Show k8s status

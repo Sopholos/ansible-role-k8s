@@ -1,0 +1,25 @@
+- name: Костыль для выдачи прав для папки /opt/cni/bin (cilium)
+  shell: chown root. -R /opt/cni/bin
+- name: "install helm"
+  shell: |
+    helm version
+    if [ $? -ne 0 ]; then  
+      wget -O helmbins.tar.gz https://get.helm.sh/helm-v3.14.3-linux-amd64.tar.gz
+      mkdir helmbins
+      tar Cxzvf helmbins helmbins.tar.gz
+      mv helmbins/linux-amd64/helm /usr/local/bin/helm
+      rm -rf helmbins helmbins.tar.gz
+    fi
+- name: install k9s
+  shell: |
+    k9s version
+    if [ $? -ne 0 ]; then  
+      wget -O k9s.deb https://github.com/derailed/k9s/releases/download/v0.32.3/k9s_linux_amd64.deb && 
+      dpkg -i k9s.deb
+    fi
+
+- block:
+    - name: Include install etcdctl
+      include_tasks:
+        file: etcdctl.yml
+  when: inventory_hostname in groups['control_planes']

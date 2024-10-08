@@ -56,6 +56,9 @@
       include_tasks:
         file: clean_tokens.yml
       when: inventory_hostname == first_control_plane
+    - name: Install soft on k8s member
+      include_tasks:
+        file: install_soft_k8s_member.yml
   when: >
     worker_nodes_to_add is defined and
     (worker_nodes_to_add|length>0)
