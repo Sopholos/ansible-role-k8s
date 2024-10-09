@@ -49,11 +49,6 @@
   ansible.builtin.set_fact:
     k8s_pki_etcd: '/etc/kubernetes/pki/etcd'
 
-- debug: 
-    msg:
-      - "{{ peer_ip_str }}"
-      - "{{ initial_cluster_str }}"
-
 - name: Copy to remote
   copy: 
     src: "{{ backup_ansible_dir }}/{{ backup_db }}"
@@ -68,8 +63,6 @@
     --write-out=table \
     snapshot status {{ backup_dir }}/{{ backup_db }}
   register: snapshot_status
-
-- debug: msg="{{ snapshot_status.stdout_lines }}"
 
 - name: Restore snapshot to new path
   shell: |

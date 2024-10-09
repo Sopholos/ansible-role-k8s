@@ -27,7 +27,7 @@
     file: clean_tokens.yml
   when: inventory_hostname == first_control_plane
 
-- name: Костыль для выдачи прав для папки /opt/cni/bin (cilium)
+- name: Dirty hack for adding rights to dir /opt/cni/bin (cilium)
   shell: chown root. -R /opt/cni/bin
 
 - block: 

@@ -15,7 +15,10 @@
     member list
   register: etcd_members
 
-- debug: msg="{{ etcd_members.stdout_lines }}"
+- name: Ensures {{ backup_dir }} dir exists
+  file:
+    path: "{{ backup_dir }}"
+    state: directory
 
 - name: Create backup file with members
   copy: 
@@ -36,7 +39,6 @@
   shell: |
     kubectl get all --all-namespaces -o yaml > \
     {{ backup_dir }}/all-resources-backup-{{ timestamp }}.yaml
-  # Restore: kubectl apply -f all-resources-backup.yaml
 
 - name: Backup ca.crt
   shell: cp /etc/kubernetes/pki/etcd/ca.crt {{ backup_dir }}/ca-{{ timestamp }}.crt
@@ -71,10 +73,4 @@
     src: "{{ backup_dir }}/ca-{{ timestamp }}.crt"
     dest: "{{ backup_ansible_dir }}/"
     flat: true
-  when: inventory_hostname == first_control_plane
-
-- debug: msg="Backup time in file {{ timestamp }}"
-
-- name: Backup PVC
-  debug: msg="Можно использовать Velero, например."
   when: inventory_hostname == first_control_plane
