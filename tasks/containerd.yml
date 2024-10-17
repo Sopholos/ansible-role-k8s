@@ -69,7 +69,7 @@
   replace:
     path: /etc/containerd/config.toml
     regexp: "pause:3.8"
-    replace: 'pause:3.9'
+    replace: 'pause:3.10'
 
 - name: Restart containerd
   service:

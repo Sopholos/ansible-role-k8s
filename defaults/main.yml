@@ -28,7 +28,7 @@ yandex_s3_key: key
 yandex_s3_secret: secret
 
 # Переменные для установки
-zabbix_server_host: zabbix.agrohistory.local
+zabbix_server_host: zabbix.local
 zabbix_monitoring_version: 6.4
 
 containerd_distr_url: https://github.com/containerd/containerd/releases/download/v1.7.21/containerd-1.7.21-linux-amd64.tar.gz
@@ -50,7 +50,7 @@ install_packages:
 
 ingress_definitions: []
 #ingress_definitions:
-  # - host: kub-lb-t-01.agrohistory.local
+  # - host: kub-lb-t-01..local
   #   namespace: kubernetes-dashboard
   #   services:
   #     - path: dashboard

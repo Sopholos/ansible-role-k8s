@@ -1,0 +1,20 @@
+cronJob:
+  name: {{ backup_etcd.cronJob.name }}
+  schedule: {{ backup_etcd.cronJob.schedule }}
+  image: {{ backup_etcd.cronJob.image }}
+  backupDir: {{ backup_etcd.cronJob.backupDir }}
+
+serviceAccount:
+  name: {{ backup_etcd.serviceAccount.name }}
+
+namespace: {{ backup_etcd.namespace }}
+
+image:
+  registry: {{ backup_etcd.image.registry }}
+  project: {{ backup_etcd.image.project }}
+  name: {{ backup_etcd.image.name }}
+  tag: {{ backup_etcd.image.tag }}
+  pullPolicy: {{ backup_etcd.image.pullPolicy }}
+  credentials:
+    username: {{ backup_etcd.credentials.username }}
+    password: {{ backup_etcd.credentials.password }}

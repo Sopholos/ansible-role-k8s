@@ -41,7 +41,7 @@
   tags: ['install','init']
   when: >
     'install' in ansible_run_tags or 
-    'init' in ansible_run_tags or
+    'init' in ansible_run_tags
 
 - name: add/delete worker nodes by changes in inventory file
   include_tasks:
@@ -71,7 +71,7 @@
     cp is defined and
     inventory_hostname in groups['control_planes']
 
-- name: Install helm soft (zabbix, dashboard)
+- name: Install helm soft (zabbix, dashboard, etcd_backup)
   include_tasks:
     file: install_helm_soft.yml
     apply:

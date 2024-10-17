@@ -87,6 +87,11 @@
     flat: true
   when: inventory_hostname == first_control_plane
 
+- name: Create dir for kube config
+  ansible.builtin.file:
+    path: ~/.kube/
+    state: directory
+
 - name: Copy kube_config
   copy:
     src: /tmp/.kube_config

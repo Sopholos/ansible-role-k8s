@@ -23,7 +23,9 @@
         - name: Get secret
           shell: kubectl get secret zabbix-service-account -n monitoring -o jsonpath={.data.token} | base64 -d
           register: zabbix_secret
-        - debug: msg="{{ zabbix_secret.stdout }}"
+        - name: Token for Zabbix
+          debug: 
+            msg: "{{ zabbix_secret.stdout }}"
       when: "'zabbix' not in helm_list.stdout_lines"
 
     - block:
@@ -44,20 +46,23 @@
         - name: Show token
           shell: kubectl -n kube-system create token admin-user
           register: dashboard_token
-        - debug: msg="{{ dashboard_token.stdout }}"
+        - name: Token for dashboard
+          debug: 
+            msg: "{{ dashboard_token.stdout }}"
         # kubectl -n kube-system create token admin-user
       when: "'kubernetes-dashboard' not in helm_list.stdout_lines"
 
-    - block:
-        - name: Copy helm_charts/etcd_backup
-          copy:
-            src: helm_charts/
-            dest: ~/helm_charts/
-        - name: Helm package
-          shell: helm package ~/helm_charts/etcd_backup
-        - name: Helm install
-          shell: |
-            helm install etcd-backup ~/helm_charts/etcd_backup --namespace kube-system
-      when: "'etcd-backup' not in helm_list.stdout_lines"
+    - name: Copy helm_charts/etcd_backup
+      copy:
+        src: helm_charts/
+        dest: ~/helm_charts/
+    - name: Helm package
+      shell: helm package ~/helm_charts/etcd_backup
+    - name: Setup values file
+      template:
+        src: etcd_backup_values.yaml.j2
+        dest: "~/helm_charts/etcd_backup/values.yaml"
+    - name: Install or upgrade Helm chart etcd-backup
+      shell: helm upgrade --install etcd-backup ~/helm_charts/etcd_backup --namespace kube-system
 
   when: inventory_hostname == first_control_plane
