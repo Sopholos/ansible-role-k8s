@@ -6,15 +6,18 @@ Role Name
 
 В случае использования нескольких control-plane подготовьте внешний TCP балансировщик и укажите в переменной k8s_endpoint его адрес. В случае одного control-plane укажите его адрес.
 
-### Инструкция по развертыванию
-1. Создайте машины под кластер.
+Инструкция по развертыванию
+------
+
+1. Создайте машины, добавляемые в кластер, в том числе load-balancer.
+
 2. Укажите в inventory сервера и переменные:
+
 ```bash
 control_planes:
     hosts:
         kub-mn-01:
-        kub-mn-02:
-
+              
 worker_nodes:
     hosts:
         kub-wn-01:
@@ -24,27 +27,59 @@ k8s:
         control_planes:
         worker_nodes:
     vars:
-        k8s_endpoint: "kub-lb.domain.local"
+        k8s_endpoint: "kub-lb-01"
         k8s_controlplane_port: "6443"
         k8s_version: "1.31"
 
-        backup_dir: "~/backup_k8s_remote/"
-        backup_ansible_dir: "/backup_local"
-        backup_time: ""
+        backup_dir: "~/backup_k8s/"
+        backup_ansible_dir: "/Users/macbook/backup"
+        # backup_time: ""
         backup_db: "etcd-{{ backup_time }}.db"
         backup_members: "members-{{ backup_time }}.txt"
         backup_manifests: "all-resources-backup-{{ backup_time }}.yaml"
         etcd_dir_to_restore: "/var/lib/etcd-{{ backup_time }}"
 
-        zabbix_server_host: "zabbix.domain.local"
+        zabbix_server_host: "zabbix.local"
         zabbix_monitoring_version: "6.4"
 
-        yandex_s3_bucket: "bucket"
-        yandex_s3_key: "key"
-        yandex_s3_secret: "secret"
+        yandex_s3_bucket: "{{ yandex_s3_bucket_k8s }}"
+        yandex_s3_key: "{{ yandex_s3_key_k8s }}"
+        yandex_s3_secret: "{{ yandex_s3_secret_k8s }}"
 ```
-3. Запустите роль с тегом -tags install.  
-Она установит на сервера containerd, runc, пакеты из install_packages
+
+3. Настройте load balancer, указав адреса control plane для TCP балансировки API порта.
+
+``` bash
+stream {
+    upstream control_planes {
+        server kub-mn-t-01.local:6443 fail_timeout=1s max_fails=2;
+        server kub-mn-t-02.local:6443 fail_timeout=1s max_fails=2;
+ 
+    }
+    server {
+        listen 6443;
+        proxy_pass control_planes;
+    }
+ 
+}
+```
+
+4. Для развертывания кластера k8s запустите роль с тегом _-tags install_.  
+Она установит на сервера containerd, runc, пакеты из install_packages, k8s (kubeadm), helm, ingress controller.
+5. Для изменения состава worker node необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags scale-worker-nodes_.
+6. Для изменения состава control plane необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags add_cp --extra-vars "cp=kub-wn-t-02"_ и _-tags del_cp --extra-vars "cp=kub-wn-t-02"_.
+7. Указав тег _-tags add-soft_, устанавливается через helm агент для zabbix, kubernetes dashboard, cronjob для резервного копирования etcd.
+8. Для установки поддержки yandex s3 в качестве pvc запустите роль с тегом _-tags s3_.
+9. Для обновления кластера в inventory укажите новую версию k8s (при необходимости containerd, runc) и запустите роль с тегом _-tags upgrade_.
+10. Для резервного копирования etcd кластера запустите роль с тегом _-tags backup_.  
+В заданной в переменной директории создадутся файлы:  
+all-resources-backup-2024-10-17_14_13_08.yaml  
+ca-2024-10-17_14_13_08.crt  
+etcd-2024-10-17_14_13_08.db  
+members-2024-10-17_14_13_08.txt
+11. Для восстановления из резервной копии etcd запустите роль с тегом _-tags restore -extra-vars "backup_time=YYYY-MM-DD_HH_MM_SS"_.
+12. Для полного удаления кластера с серверов, указанных в inventiry, запустите роль с тегом _-tags delete_.
+13. Для сброса подключения к кластеру с серверов, указанных в inventiry, запустите роль с тегом _-tags reset_.
 
 Requirements
 ------------
@@ -76,7 +111,7 @@ Requirements
 - yandex_s3_secret // Секрет доступа
 
 ---
-
+``` bash
 - backup_dir // Директория для сохранения бэкапа на нодах кластера
 - backup_ansible_dir // Директория для сохранения бэкапа на сервере Ansible
 - backup_time // Время бэкапа для восстановления
@@ -84,6 +119,26 @@ Requirements
 - backup_members // Файл с бэкапом состава кластера etcd
 - backup_manifests // Файл с бэкапом манифестов всех развернутых ресурсов
 - etcd_dir_to_restore // Директория с восстановленными данными для etcd
+- переменные для хелм чарта backup_etcd:
+backup_etcd:
+    cronJob:
+        name: etcd-backup
+        schedule: "0 3 ** *"
+        image: "bitnami/etcd:latest"
+        backupDir: "/tmp/backup"
+    serviceAccount:
+        name: etcd-backup-sa
+    namespace: kube-system
+    image:
+        registry: gitlab.agroassist.ru:5050
+        project: "devops/kubernetes/registry"
+        name: "etcd"
+        tag: "20241004-1455"
+        pullPolicy: IfNotPresent
+    credentials:
+        username: "{{ username_registry }}"
+        password: "{{ password_registry }}"
+```
 
 Dependencies
 ------------
@@ -92,36 +147,6 @@ wget
 
 Example Playbook
 ----------------
-
-1. Установка кластера.  
-В переменной k8s_version указывается устанавливаемая версия.
-`pwsh ./Servers/Deployment/k8s/test/install-k8s.yml`
-1. Инициализация кластера.
-`pwsh ./Servers/Deployment/k8s/test/init-k8s.yml`
-1. Добавление или удаление worker nodes в соответствии с файлом inventory.
-`pwsh ./Servers/Deployment/k8s/test/scale-workers-k8s.ps1`
-1. Добавление control plane с etcd.
-`pwsh ./Servers/Deployment/k8s/test/add-cp-k8s.ps1 -cp kub-wn-t-01`
-1. Удаление control plane с etcd.
-`pwsh ./Servers/Deployment/k8s/test/del-cp-k8s.ps1 -cp kub-wn-t-01`
-1. Установка дополнительного ПО (zabbix, kubernetes dashboard).
-`pwsh ./Servers/Deployment/k8s/test/install_helm_soft.ps1`
-1. Добавление/удаление ingress в соответствии с заданной переменной ingress_definitions.  
-`pwsh ./Servers/Deployment/k8s/test/ingress.ps1`
-Ингрессы, которые отсутствуют в переменной, а в кластере существуют - __удаляются!!!__
-1. Добавление CSI для подключения к Yandex S3.
-`pwsh ./Servers/Deployment/k8s/test/yandex-s3.ps1`
-1. Обновление кластера до заданной версии.  
-В переменной k8s_version указывается устанавливаемая версия.
-`pwsh ./Servers/Deployment/k8s/test/upgrade-k8s.ps1`
-1. Вывод всех нод, заданных в inventory из кластера.
-`pwsh ./Servers/Deployment/k8s/test/reset.ps1`
-1. Удаление кластера со всех нод.
-`pwsh ./Servers/Deployment/k8s/test/delete-k8s.ps1`
-1. Резервное копирование кластера.
-`pwsh ./Servers/Deployment/k8s/test/backup-k8s.ps1`
-1. Восстановление кластера из резервной копии.
-`pwsh ./Servers/Deployment/k8s/test/restore-k8s.ps1`
 
 Author Information
 ------------------
