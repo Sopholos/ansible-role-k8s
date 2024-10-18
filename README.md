@@ -66,20 +66,20 @@ stream {
 
 1. Для развертывания кластера k8s запустите роль с тегом _-tags install_.  
 Она установит на сервера containerd, runc, пакеты из install_packages, k8s (kubeadm), helm, ingress controller.
-1. Для изменения состава worker node необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags scale-worker-nodes_.
-1. Для изменения состава control plane необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags add_cp --extra-vars "cp=kub-wn-t-02"_ и _-tags del_cp --extra-vars "cp=kub-wn-t-02"_.
-1. Указав тег _-tags add-soft_, устанавливается через helm агент для zabbix, kubernetes dashboard, cronjob для резервного копирования etcd.
-1. Для установки поддержки yandex s3 в качестве pvc запустите роль с тегом _-tags s3_.
-1. Для обновления кластера в inventory укажите новую версию k8s (при необходимости containerd, runc) и запустите роль с тегом _-tags upgrade_.
-1. Для резервного копирования etcd кластера запустите роль с тегом _-tags backup_.  
+2. Для изменения состава worker node необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags scale-worker-nodes_.
+3. Для изменения состава control plane необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags add_cp --extra-vars "cp=kub-wn-t-02"_ и _-tags del_cp --extra-vars "cp=kub-wn-t-02"_.
+4. Указав тег _-tags add-soft_, устанавливается через helm агент для zabbix, kubernetes dashboard, cronjob для резервного копирования etcd.
+5. Для установки поддержки yandex s3 в качестве pvc запустите роль с тегом _-tags s3_.
+6. Для обновления кластера в inventory укажите новую версию k8s (при необходимости containerd, runc) и запустите роль с тегом _-tags upgrade_.
+7. Для резервного копирования etcd кластера запустите роль с тегом _-tags backup_.  
 В заданной в переменной директории создадутся файлы:  
 all-resources-backup-2024-10-17_14_13_08.yaml  
 ca-2024-10-17_14_13_08.crt  
 etcd-2024-10-17_14_13_08.db  
 members-2024-10-17_14_13_08.txt
-1. Для восстановления из резервной копии etcd запустите роль с тегом _-tags restore -extra-vars "backup_time=YYYY-MM-DD_HH_MM_SS"_.
-1. Для полного удаления кластера с серверов, указанных в inventiry, запустите роль с тегом _-tags delete_.
-1. Для сброса подключения к кластеру с серверов, указанных в inventiry, запустите роль с тегом _-tags reset_.
+8. Для восстановления из резервной копии etcd запустите роль с тегом _-tags restore -extra-vars "backup_time=YYYY-MM-DD_HH_MM_SS"_.
+9. Для полного удаления кластера с серверов, указанных в inventiry, запустите роль с тегом _-tags delete_.
+10. Для сброса подключения к кластеру с серверов, указанных в inventiry, запустите роль с тегом _-tags reset_.
 
 Requirements
 ------------
