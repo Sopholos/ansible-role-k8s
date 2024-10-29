@@ -33,7 +33,7 @@
 - name: Delete worker nodes
   shell: |
     kubectl cordon {{ item }}
-    kubectl drain {{ item }} --ignore-daemonsets
+    kubectl drain {{ item }} --ignore-daemonsets --force
     kubectl delete node {{ item }}
   loop: "{{ worker_nodes_to_remove }}"
   delegate_to: "{{ first_control_plane }}"
@@ -62,7 +62,6 @@
   when: >
     worker_nodes_to_add is defined and
     (worker_nodes_to_add|length>0)
-
 
 # Show status
 - name: Add show status
