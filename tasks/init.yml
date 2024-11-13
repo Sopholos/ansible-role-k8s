@@ -38,10 +38,6 @@
         tar Cxzvf helmbins helmbins.tar.gz
         mv helmbins/linux-amd64/helm /usr/local/bin/helm
         rm -rf helmbins helmbins.tar.gz
-    - name: install k9s
-      shell: |
-        wget -O k9s.deb https://github.com/derailed/k9s/releases/download/v0.32.3/k9s_linux_amd64.deb && 
-        dpkg -i k9s.deb
   when: > 
     inventory_hostname in groups['control_planes'] and
     not kubelet_conf['stat']['exists']
