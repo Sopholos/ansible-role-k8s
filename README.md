@@ -152,14 +152,4 @@ Author Information
 ------------------
 
 Алексей Шумов
-
-PS
-------------------
-
-На control-plane ноды устанавливается k9s для возможности удобного просмотра информации о кластере из командной строки.  
-Команды:
-
-- k9s - start gui  
-- use ":" to navigate trough cluster resources <https://k9scli.io/topics/>
-- PRESS ":" then TYPE "deploy" and PRESS "Enter" will open deployments list  
-- PRESS ":" then TYPE "q" and PRESS "Enter" will close k9s and return you to shell  
+ 
