@@ -16,10 +16,10 @@
 - name: Swap off
   command: sudo swapoff -a
 
-- name: Remove Swap from fstab
-  mount:
-    name: swap
-    fstype: swap
+- name: Remove swap entry from fstab
+  lineinfile:
+    path: /etc/fstab
+    regexp: '^.*swap.*$'
     state: absent
 
 - name: Tasks for installation Containerd
