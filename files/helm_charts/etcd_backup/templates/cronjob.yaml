@@ -24,7 +24,7 @@ spec:
             args:
               - |
                 date
-                etcdctl snapshot save {{ .Values.cronJob.backupDir }}/etcd-backup.db \
+                etcdctl snapshot save {{ .Values.cronJob.backupDir }}/etcd-backup-$(date -Idate).db \
                 --cacert /etc/kubernetes/pki/etcd/ca.crt \
                 --cert /etc/kubernetes/pki/etcd/peer.crt \
                 --key /etc/kubernetes/pki/etcd/peer.key \
@@ -35,16 +35,15 @@ spec:
                   fieldRef:
                     fieldPath: status.hostIP
             volumeMounts:
-              - name: backup-volume
+              - name: backup-etcd
                 mountPath: {{ .Values.cronJob.backupDir }}
               - name: etcd-certs
                 mountPath: /etc/kubernetes/pki/etcd/
           restartPolicy: OnFailure
           volumes:
-            - name: backup-volume
-              hostPath:
-                path: /backup_etcd
-                type: DirectoryOrCreate
+            - name: backup-etcd
+              persistentVolumeClaim:
+                claimName: {{ .Values.cronJob.name }}-pvc
             - name: etcd-certs
               hostPath:
                 path: /etc/kubernetes/pki/etcd/
