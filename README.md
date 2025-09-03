@@ -67,7 +67,7 @@ stream {
 4. Для развертывания кластера k8s запустите роль с тегом _-tags install_.  
 Она установит на сервера containerd, runc, пакеты из install_packages, k8s (kubeadm), helm, ingress controller.
 5. Для изменения состава worker node необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags scale-worker-nodes_.
-6. Для изменения состава control plane необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags add_cp --extra-vars "cp=kub-wn-t-02"_ и _-tags del_cp --extra-vars "cp=kub-wn-t-02"_.
+6. Для изменения состава control plane необходимо в inventory добавить/убрать узлы и запустить роль с тегом _-tags add_cp --extra-vars "cp=kub-wn-t-02"_ и _-tags del_cp --extra-vars "cp=kub-wn-t-02"_. Перед этим убрать control plane их haproxy!!!
 7. Указав тег _-tags add-soft_, устанавливается через helm агент для zabbix, kubernetes dashboard, cronjob для резервного копирования etcd.
 8. Для установки поддержки yandex s3 в качестве pvc запустите роль с тегом _-tags s3_.
 9. Для обновления кластера в inventory укажите новую версию k8s (при необходимости containerd, runc) и запустите роль с тегом _-tags upgrade_.
