@@ -4,6 +4,8 @@
 - name: tasks for installing requirements
   include_tasks:
     file: requirements.yml
+    apply:
+      tags: ['always']
   tags: ['always']
 
 - name: 'Check for kubelet configuration'
