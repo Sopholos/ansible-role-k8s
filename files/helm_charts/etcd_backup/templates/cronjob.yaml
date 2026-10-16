@@ -5,8 +5,16 @@ metadata:
   namespace: {{ .Values.namespace }}
 spec:
   schedule: {{ .Values.cronJob.schedule }}
+  suspend: {{ .Values.cronJob.suspend | default false }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      # Зависший snapshot держит read-транзакцию etcd и раздувает базу до NOSPACE
+      activeDeadlineSeconds: {{ .Values.cronJob.activeDeadlineSeconds | default 1800 }}
+      backoffLimit: 1
       template:
         spec:
           nodeSelector:
@@ -23,12 +31,19 @@ spec:
             command: ["/bin/sh","-c"]
             args:
               - |
+                set -e
                 date
-                etcdctl snapshot save {{ .Values.cronJob.backupDir }}/etcd-backup-$(date -Idate).db \
+                FILE=etcd-backup-$(date -Idate).db
+                # Сначала на локальный диск, чтобы медленный S3 не держал snapshot-поток к etcd
+                etcdctl snapshot save /snapshot/$FILE \
                 --cacert /etc/kubernetes/pki/etcd/ca.crt \
                 --cert /etc/kubernetes/pki/etcd/peer.crt \
                 --key /etc/kubernetes/pki/etcd/peer.key \
                 --endpoints $NODE_IP:2379
+                timeout {{ .Values.cronJob.copyTimeoutSeconds | default 900 }} cp /snapshot/$FILE {{ .Values.cronJob.backupDir }}/$FILE.part \
+                  || { rm -f {{ .Values.cronJob.backupDir }}/$FILE.part; exit 1; }
+                mv {{ .Values.cronJob.backupDir }}/$FILE.part {{ .Values.cronJob.backupDir }}/$FILE
+                date
             env:
               - name: NODE_IP
                 valueFrom:
@@ -37,10 +52,15 @@ spec:
             volumeMounts:
               - name: backup-etcd
                 mountPath: {{ .Values.cronJob.backupDir }}
+              - name: snapshot
+                mountPath: /snapshot
               - name: etcd-certs
                 mountPath: /etc/kubernetes/pki/etcd/
           restartPolicy: OnFailure
           volumes:
+            - name: snapshot
+              emptyDir:
+                sizeLimit: 4Gi
             - name: backup-etcd
               persistentVolumeClaim:
                 claimName: {{ .Values.cronJob.name }}-pvc
