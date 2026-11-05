@@ -80,6 +80,7 @@ members-2024-10-17_14_13_08.txt
 11. Для восстановления из резервной копии etcd запустите роль с тегом _-tags restore -extra-vars "backup_time=YYYY-MM-DD_HH_MM_SS"_.
 12. Для полного удаления кластера с серверов, указанных в inventiry, запустите роль с тегом _-tags delete_.
 13. Для сброса подключения к кластеру с серверов, указанных в inventiry, запустите роль с тегом _-tags reset_.
+14. Для продления сертификатов kubeadm (срок — год, CA не трогаются) запустите роль с тегом _-tags renew-certs_. Control plane обрабатываются по одному: бэкап /etc/kubernetes в /root/k8s-certs-backup-*.tgz, `kubeadm certs renew all`, перезапуск static pods, ожидание readyz и etcd.
 
 Requirements
 ------------

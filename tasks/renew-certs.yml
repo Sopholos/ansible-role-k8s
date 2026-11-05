@@ -1,0 +1,18 @@
+# Продление сертификатов kubeadm (apiserver, etcd, *.conf) ещё на год. CA не трогаются.
+# Control plane обрабатываются строго по одному, чтобы etcd не терял кворум.
+- name: Check etcd cluster health before renew
+  shell: |
+    ETCDCTL_API=3 etcdctl \
+    --cacert /etc/kubernetes/pki/etcd/ca.crt \
+    --cert /etc/kubernetes/pki/etcd/healthcheck-client.crt \
+    --key /etc/kubernetes/pki/etcd/healthcheck-client.key \
+    --endpoints https://127.0.0.1:2379 \
+    endpoint health --cluster
+  changed_when: false
+
+- name: Renew certs on control planes one by one
+  include_tasks:
+    file: renew-certs-node.yml
+  loop: "{{ groups['control_planes'] }}"
+  loop_control:
+    loop_var: cp_node
