@@ -100,6 +100,16 @@
   when: > 
     'upgrade' in ansible_run_tags
 
+- name: Renew kubeadm certs
+  include_tasks:
+    file: renew-certs.yml
+    apply:
+      tags: ['renew-certs']
+  tags: ['renew-certs']
+  when: >
+    'renew-certs' in ansible_run_tags and
+    inventory_hostname == first_control_plane
+
 - name: tasks for reset k8s on server
   shell: |
     echo y | kubeadm reset

@@ -1,0 +1,78 @@
+- name: Get time
+  shell: date "+%Y-%m-%d_%H_%M_%S"
+  register: renew_time
+  delegate_to: "{{ cp_node }}"
+  changed_when: false
+
+- name: Backup /etc/kubernetes on {{ cp_node }}
+  shell: |
+    tar czf /root/k8s-certs-backup-{{ renew_time.stdout }}.tgz -C /etc/kubernetes pki $(cd /etc/kubernetes && ls *.conf)
+  delegate_to: "{{ cp_node }}"
+
+- name: Renew certs on {{ cp_node }}
+  command: kubeadm certs renew all
+  delegate_to: "{{ cp_node }}"
+
+# Static pods перечитывают сертификаты только при перезапуске: убираем манифесты,
+# ждём остановки контейнеров и возвращаем.
+- name: Move out static pod manifests on {{ cp_node }}
+  shell: |
+    mkdir -p /etc/kubernetes/manifests-renew
+    mv /etc/kubernetes/manifests/{etcd,kube-apiserver,kube-controller-manager,kube-scheduler}.yaml /etc/kubernetes/manifests-renew/
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ cp_node }}"
+
+- name: Wait for static pods to stop on {{ cp_node }}
+  shell: crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps -q --name '^(etcd|kube-apiserver|kube-controller-manager|kube-scheduler)$'
+  register: static_pods
+  until: static_pods.stdout == ""
+  retries: 30
+  delay: 5
+  delegate_to: "{{ cp_node }}"
+  changed_when: false
+
+- name: Return static pod manifests on {{ cp_node }}
+  shell: |
+    mv /etc/kubernetes/manifests-renew/*.yaml /etc/kubernetes/manifests/
+    rmdir /etc/kubernetes/manifests-renew
+  delegate_to: "{{ cp_node }}"
+
+- name: Wait for apiserver ready on {{ cp_node }}
+  ansible.builtin.uri:
+    url: https://127.0.0.1:6443/readyz
+    validate_certs: false
+  register: readyz
+  until: readyz.status == 200
+  retries: 60
+  delay: 5
+  delegate_to: "{{ cp_node }}"
+
+- name: Wait for etcd healthy on {{ cp_node }}
+  shell: |
+    ETCDCTL_API=3 etcdctl \
+    --cacert /etc/kubernetes/pki/etcd/ca.crt \
+    --cert /etc/kubernetes/pki/etcd/healthcheck-client.crt \
+    --key /etc/kubernetes/pki/etcd/healthcheck-client.key \
+    --endpoints https://127.0.0.1:2379 \
+    endpoint health --cluster
+  register: etcd_health
+  until: etcd_health.rc == 0
+  retries: 30
+  delay: 5
+  delegate_to: "{{ cp_node }}"
+  changed_when: false
+
+- name: Update root kubeconfig on {{ cp_node }}
+  shell: |
+    mkdir -p /root/.kube
+    cp /etc/kubernetes/admin.conf /root/.kube/config
+  delegate_to: "{{ cp_node }}"
+
+- name: Check expiration on {{ cp_node }}
+  command: kubeadm certs check-expiration
+  register: expiration
+  delegate_to: "{{ cp_node }}"
+  changed_when: false
+
+- debug: msg="{{ expiration.stdout_lines }}"
