@@ -73,6 +73,14 @@
     cp is defined and
     inventory_hostname in groups['control_planes']
 
+# backup_etcd.enabled: false — удалить релиз etcd-backup (снимок оставался в поде и никуда не выгружался)
+- name: Remove etcd-backup
+  shell: helm uninstall etcd-backup --namespace kube-system --ignore-not-found
+  when:
+    - inventory_hostname == first_control_plane
+    - not (backup_etcd.enabled | default(true) | bool)
+  tags: ['etcd-backup']
+
 - name: Install helm soft (zabbix, dashboard, etcd_backup)
   include_tasks:
     file: install_helm_soft.yml
